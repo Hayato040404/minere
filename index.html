@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Minecraft Refined (Smartphone Mode Added)</title>
+    <title>Minecraft Refined (Smartphone Mode Fixed)</title>
     <style>
         body { margin: 0; overflow: hidden; background: #87CEEB; font-family: Arial; touch-action: manipulation; }
         canvas { width: 100%; height: 100%; display: none; }
@@ -45,7 +45,7 @@
             width: 15px; height: 15px; border: 2px solid white; border-radius: 50%; display: none;
         }
         #weather { position: absolute; top: 30px; left: 50%; transform: translateX(-50%); color: white; font-size: 14px; }
-        #debug-info { display: none; } /* スマホモードではデバッグ非表示 */
+        #debug-info { display: none; }
         #error-message {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: rgba(255, 0, 0, 0.8); color: white; padding: 15px; display: none;
@@ -119,8 +119,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134/examples/js/controls/PointerLockControls.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
-    <audio id="breakSound" src="https://www.myinstants.com/media/sounds/minecraft-dig-1.mp3" preload="auto"></audio>
-    <audio id="hitSound" src="https://www.myinstants.com/media/sounds/minecraft-hit-1.mp3" preload="auto"></audio>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             let gameMode = 'normal';
@@ -402,7 +400,7 @@
                 }
 
                 function createParticle(x, y, z, color) {
-                    if (gameMode === 'smartphone') return; // スマホモードではパーティクルを無効
+                    if (gameMode === 'smartphone') return;
                     const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
                     const material = new THREE.MeshBasicMaterial({ color });
                     const particle = new THREE.Mesh(geometry, material);
@@ -413,7 +411,7 @@
                 }
 
                 function dropItem(x, y, z, type) {
-                    if (gameMode === 'smartphone') return; // スマホモードではドロップを無効
+                    if (gameMode === 'smartphone') return;
                     const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
                     let color;
                     switch (type) {
@@ -467,7 +465,7 @@
                 }
 
                 function updateFluidOpacity() {
-                    if (gameMode === 'smartphone') return; // スマホモードでは流体の更新を無効
+                    if (gameMode === 'smartphone') return;
                     if (time % 1000 < 16) {
                         for (let [key, materials] of blockMaterials) {
                             materials.fluid.opacity = 0.6;
@@ -478,7 +476,7 @@
 
                 const mobs = [];
                 function spawnMob(type, x, y, z) {
-                    if (mobs.length > 10 || gameMode === 'smartphone') return; // スマホモードではモブ数を制限
+                    if (mobs.length > 10 || gameMode === 'smartphone') return;
                     const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
                     let color, height, health;
                     switch (type) {
@@ -547,16 +545,28 @@
                     try {
                         const playerChunkX = 0;
                         const playerChunkZ = 0;
+                        let chunksToLoad = [];
                         for (let cx = playerChunkX - renderDistance; cx <= playerChunkX + renderDistance; cx++) {
                             for (let cz = playerChunkZ - renderDistance; cz <= playerChunkZ + renderDistance; cz++) {
-                                generateChunk(cx, cz);
-                                loadedChunks++;
-                                progressSpan.textContent = `${Math.floor((loadedChunks / totalChunks) * 100)}%`;
-                                if (loadedChunks === totalChunks) {
-                                    setTimeout(() => { loadingDiv.style.display = 'none'; animate(); }, 500);
-                                }
+                                chunksToLoad.push({ cx, cz });
                             }
                         }
+                        let loaded = 0;
+                        chunksToLoad.forEach(({ cx, cz }) => {
+                            setTimeout(() => {
+                                generateChunk(cx, cz);
+                                loaded++;
+                                loadedChunks = loaded;
+                                const progress = Math.floor((loaded / totalChunks) * 100);
+                                progressSpan.textContent = `${progress}%`;
+                                if (loaded === totalChunks) {
+                                    setTimeout(() => {
+                                        loadingDiv.style.display = 'none';
+                                        animate();
+                                    }, 500);
+                                }
+                            }, 0);
+                        });
                     } catch (e) {
                         handleError(`チャンク生成エラー: ${e.message}`);
                     }
@@ -565,8 +575,8 @@
                 const velocity = new THREE.Vector3();
                 let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false, canJump = false, isSprinting = false;
 
-                const baseSpeed = 4.3;
-                const sprintSpeed = baseSpeed * 1.3;
+                const baseSpeed = 0.43; // Minecraft 歩行速度（4.3m/sをスケール調整）
+                const sprintSpeed = baseSpeed * 1.3; // スプリント速度（5.6m/s相当）
                 const gravity = gameMode === 'creative' ? 0 : -9.8;
                 const jumpVelocity = 4.5;
 
@@ -599,125 +609,6 @@
                     }
                 });
 
-                const breakSound = document.getElementById('breakSound');
-                const hitSound = document.getElementById('hitSound');
-                document.addEventListener('mousedown', (event) => {
-                    if (!isGameRunning) return;
-                    event.preventDefault();
-                    try {
-                        if (event.button === 0) { // 左クリック
-                            if (gameMode === 'creative' || inventory.pickaxe > 0) {
-                                const raycaster = new THREE.Raycaster();
-                                raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-                                const intersects = raycaster.intersectObjects([...Array.from(chunks.values()), ...mobs], true);
-
-                                if (intersects.length > 0) {
-                                    const intersect = intersects[0];
-                                    if (intersect.object.userData?.type) {
-                                        console.log(`Hit ${intersect.object.userData.type}!`);
-                                        return;
-                                    }
-                                    const pos = intersect.point.clone().sub(intersect.face.normal.multiplyScalar(0.5));
-                                    const blockX = Math.floor(pos.x);
-                                    const blockY = Math.floor(pos.y);
-                                    const blockZ = Math.floor(pos.z);
-
-                                    const blockKey = `${blockX},${blockY},${blockZ}`;
-                                    if (blockMap.has(blockKey)) {
-                                        const block = blockMap.get(blockKey);
-                                        if (gameMode === 'survival') {
-                                            dropItem(blockX, blockY, blockZ, block.type);
-                                        } else {
-                                            inventory[block.type]++;
-                                        }
-                                        updateInventory();
-                                        breakSound.currentTime = 0;
-                                        breakSound.play();
-
-                                        if (gameMode !== 'smartphone') {
-                                            for (let i = 0; i < 5; i++) createParticle(blockX, blockY, blockZ, block.color);
-                                        }
-
-                                        blockMap.delete(blockKey);
-                                        const chunkX = Math.floor(blockX / chunkSize);
-                                        const chunkZ = Math.floor(blockZ / chunkSize);
-                                        const chunkKey = `${chunkX},${chunkZ}`;
-                                        const chunk = chunks.get(chunkKey);
-                                        if (chunk) {
-                                            scene.remove(chunk);
-                                            const fluidMaterials = blockMaterials.get(chunkKey);
-                                            if (fluidMaterials) {
-                                                scene.remove(fluidMaterials.fluidMesh);
-                                                blockMaterials.delete(chunkKey);
-                                            }
-                                            chunks.delete(chunkKey);
-                                            generateChunk(chunkX, chunkZ);
-                                        }
-                                    }
-                                }
-                            }
-                        } else if (event.button === 2) { // 右クリック
-                            const raycaster = new THREE.Raycaster();
-                            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-                            const intersects = raycaster.intersectObjects([...Array.from(chunks.values())], true);
-
-                            if (intersects.length > 0) {
-                                const intersect = intersects[0];
-                                const pos = intersect.point.clone().add(intersect.face.normal.multiplyScalar(0.5));
-                                const blockX = Math.floor(pos.x);
-                                const blockY = Math.floor(pos.y);
-                                const blockZ = Math.floor(pos.z);
-
-                                const blockKey = `${blockX},${blockY},${blockZ}`;
-                                if (!blockMap.has(blockKey)) {
-                                    const selectedItem = [
-                                        '', '', 'grass', 'dirt', 'stone',
-                                        'sand', 'ice', 'wood', 'leaves', 'water'
-                                    ][selectedSlot];
-                                    if (selectedItem && gameMode !== 'creative' && inventory[selectedItem] <= 0) {
-                                        alert('ブロックがありません！');
-                                        return;
-                                    }
-                                    if (selectedItem) {
-                                        if (gameMode === 'survival') inventory[selectedItem]--;
-                                        let color;
-                                        switch (selectedItem) {
-                                            case 'grass': color = 0x00ff00; break;
-                                            case 'dirt': color = 0x8b4513; break;
-                                            case 'stone': color = 0x808080; break;
-                                            case 'sand': color = 0xffff99; break;
-                                            case 'ice': color = 0xE0FFFF; break;
-                                            case 'wood': color = 0x8b4513; break;
-                                            case 'leaves': color = 0x00cc00; break;
-                                            case 'water': color = 0x0000FF; break;
-                                            default: return;
-                                        }
-                                        blockMap.set(blockKey, { color, type: selectedItem });
-                                        updateInventory();
-
-                                        const chunkX = Math.floor(blockX / chunkSize);
-                                        const chunkZ = Math.floor(blockZ / chunkSize);
-                                        const chunkKey = `${chunkX},${chunkZ}`;
-                                        const chunk = chunks.get(chunkKey);
-                                        if (chunk) {
-                                            scene.remove(chunk);
-                                            const fluidMaterials = blockMaterials.get(chunkKey);
-                                            if (fluidMaterials) {
-                                                scene.remove(fluidMaterials.fluidMesh);
-                                                blockMaterials.delete(chunkKey);
-                                            }
-                                            chunks.delete(chunkKey);
-                                            generateChunk(chunkX, chunkZ);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } catch (e) {
-                        handleError(`マウス操作エラー: ${e.message}`);
-                    }
-                }, { passive: false });
-
                 function attack() {
                     if (!isGameRunning || inventory.sword <= 0) return;
                     try {
@@ -728,11 +619,6 @@
                         if (intersects.length > 0) {
                             const mob = intersects[0].object;
                             mob.userData.health -= 4;
-                            if (gameMode !== 'smartphone') {
-                                const hitSound = document.getElementById('hitSound');
-                                hitSound.currentTime = 0;
-                                hitSound.play();
-                            }
                             if (mob.userData.health <= 0) {
                                 scene.remove(mob);
                                 mobs.splice(mobs.indexOf(mob), 1);
@@ -743,7 +629,6 @@
                     }
                 }
 
-                // タッチ操作
                 const joystickBase = document.getElementById('joystick-base');
                 const joystickKnob = document.getElementById('joystick-knob');
                 const jumpButton = document.getElementById('jump-button');
@@ -876,6 +761,121 @@
                     }
                 }, { passive: false });
 
+                document.addEventListener('mousedown', (event) => {
+                    if (!isGameRunning) return;
+                    event.preventDefault();
+                    try {
+                        if (event.button === 0) { // 左クリック
+                            if (gameMode === 'creative' || inventory.pickaxe > 0) {
+                                const raycaster = new THREE.Raycaster();
+                                raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+                                const intersects = raycaster.intersectObjects([...Array.from(chunks.values()), ...mobs], true);
+
+                                if (intersects.length > 0) {
+                                    const intersect = intersects[0];
+                                    if (intersect.object.userData?.type) {
+                                        console.log(`Hit ${intersect.object.userData.type}!`);
+                                        return;
+                                    }
+                                    const pos = intersect.point.clone().sub(intersect.face.normal.multiplyScalar(0.5));
+                                    const blockX = Math.floor(pos.x);
+                                    const blockY = Math.floor(pos.y);
+                                    const blockZ = Math.floor(pos.z);
+
+                                    const blockKey = `${blockX},${blockY},${blockZ}`;
+                                    if (blockMap.has(blockKey)) {
+                                        const block = blockMap.get(blockKey);
+                                        if (gameMode === 'survival') {
+                                            dropItem(blockX, blockY, blockZ, block.type);
+                                        } else {
+                                            inventory[block.type]++;
+                                        }
+                                        updateInventory();
+
+                                        if (gameMode !== 'smartphone') {
+                                            for (let i = 0; i < 5; i++) createParticle(blockX, blockY, blockZ, block.color);
+                                        }
+
+                                        blockMap.delete(blockKey);
+                                        const chunkX = Math.floor(blockX / chunkSize);
+                                        const chunkZ = Math.floor(blockZ / chunkSize);
+                                        const chunkKey = `${chunkX},${chunkZ}`;
+                                        const chunk = chunks.get(chunkKey);
+                                        if (chunk) {
+                                            scene.remove(chunk);
+                                            const fluidMaterials = blockMaterials.get(chunkKey);
+                                            if (fluidMaterials) {
+                                                scene.remove(fluidMaterials.fluidMesh);
+                                                blockMaterials.delete(chunkKey);
+                                            }
+                                            chunks.delete(chunkKey);
+                                            generateChunk(chunkX, chunkZ);
+                                        }
+                                    }
+                                }
+                            }
+                        } else if (event.button === 2) { // 右クリック
+                            const raycaster = new THREE.Raycaster();
+                            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+                            const intersects = raycaster.intersectObjects([...Array.from(chunks.values())], true);
+
+                            if (intersects.length > 0) {
+                                const intersect = intersects[0];
+                                const pos = intersect.point.clone().add(intersect.face.normal.multiplyScalar(0.5));
+                                const blockX = Math.floor(pos.x);
+                                const blockY = Math.floor(pos.y);
+                                const blockZ = Math.floor(pos.z);
+
+                                const blockKey = `${blockX},${blockY},${blockZ}`;
+                                if (!blockMap.has(blockKey)) {
+                                    const selectedItem = [
+                                        '', '', 'grass', 'dirt', 'stone',
+                                        'sand', 'ice', 'wood', 'leaves', 'water'
+                                    ][selectedSlot];
+                                    if (selectedItem && gameMode !== 'creative' && inventory[selectedItem] <= 0) {
+                                        alert('ブロックがありません！');
+                                        return;
+                                    }
+                                    if (selectedItem) {
+                                        if (gameMode === 'survival') inventory[selectedItem]--;
+                                        let color;
+                                        switch (selectedItem) {
+                                            case 'grass': color = 0x00ff00; break;
+                                            case 'dirt': color = 0x8b4513; break;
+                                            case 'stone': color = 0x808080; break;
+                                            case 'sand': color = 0xffff99; break;
+                                            case 'ice': color = 0xE0FFFF; break;
+                                            case 'wood': color = 0x8b4513; break;
+                                            case 'leaves': color = 0x00cc00; break;
+                                            case 'water': color = 0x0000FF; break;
+                                            default: return;
+                                        }
+                                        blockMap.set(blockKey, { color, type: selectedItem });
+                                        updateInventory();
+
+                                        const chunkX = Math.floor(blockX / chunkSize);
+                                        const chunkZ = Math.floor(blockZ / chunkSize);
+                                        const chunkKey = `${chunkX},${chunkZ}`;
+                                        const chunk = chunks.get(chunkKey);
+                                        if (chunk) {
+                                            scene.remove(chunk);
+                                            const fluidMaterials = blockMaterials.get(chunkKey);
+                                            if (fluidMaterials) {
+                                                scene.remove(fluidMaterials.fluidMesh);
+                                                blockMaterials.delete(chunkKey);
+                                            }
+                                            chunks.delete(chunkKey);
+                                            generateChunk(chunkX, chunkZ);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        handleError(`マウス操作エラー: ${e.message}`);
+                    }
+                }, { passive: false });
+
                 camera.position.y = 10;
 
                 let prevTime = performance.now();
@@ -905,18 +905,9 @@
                         cameraDirection.normalize();
 
                         const rightVector = new THREE.Vector3().crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0)).normalize();
-                        const moveVector = cameraDirection.multiplyScalar(direction.z * speed * delta * 10)
-                            .add(rightVector.multiplyScalar(direction.x * speed * delta * 10));
+                        const moveVector = cameraDirection.multiplyScalar(direction.z * speed * delta)
+                            .add(rightVector.multiplyScalar(direction.x * speed * delta));
                         controls.getObject().position.add(moveVector);
-
-                        if (gameMode !== 'smartphone' && time - lastStepTime > 500) {
-                            const stepSound = document.getElementById('stepSound');
-                            if (stepSound) {
-                                stepSound.currentTime = 0;
-                                stepSound.play().catch(e => console.warn(`音声再生エラー: ${e.message}`));
-                                lastStepTime = time;
-                            }
-                        }
                     }
 
                     controls.getObject().position.y += velocity.y * delta;
