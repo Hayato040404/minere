@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Minecraft Refined with Settings</title>
+    <title>Minecraft Refined (Bug Fixed & Enhanced)</title>
     <style>
         body { margin: 0; overflow: hidden; background: #87CEEB; font-family: Arial; }
         canvas { width: 100%; height: 100%; display: none; }
@@ -17,6 +17,7 @@
             background: #555; color: white; border: none; cursor: pointer;
         }
         #start-screen button:hover { background: #777; }
+        #start-screen p { font-size: 14px; margin: 5px; }
         #loading {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             font-size: 24px; color: white; background: rgba(0,0,0,0.7); padding: 20px; display: none;
@@ -29,14 +30,20 @@
         #inventory-detail {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: rgba(0,0,0,0.8); color: white; padding: 20px; display: none;
-            font-size: 16px; width: 300px; height: 200px;
+            font-size: 16px; width: 300px; height: 300px; overflow-y: auto;
+        }
+        #mouse-lock-message {
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.7); color: white; padding: 10px; font-size: 16px; display: none;
         }
         .heart { width: 20px; height: 20px; background: red; margin: 0 2px; border: 1px solid black; }
-        .slot { width: 30px; height: 30px; background: #8B4513; margin: 0 2px; text-align: center; line-height: 30px; border: 1px solid black; }
+        .slot { width: 30px; height: 30px; background: #8B4513; margin: 0 2px; text-align: center; line-height: 30px; border: 1px solid black; position: relative; }
+        .slot-count { position: absolute; bottom: 2px; right: 2px; font-size: 12px; }
         #crosshair {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: 20px; height: 20px; border: 2px solid white; border-radius: 50%; display: none;
         }
+        #weather { position: absolute; top: 30px; left: 50%; transform: translateX(-50%); color: white; font-size: 16px; }
     </style>
 </head>
 <body>
@@ -53,540 +60,706 @@
             <option value="0">FPS制限: なし</option>
         </select>
         <select id="render-distance">
-            <option value="3">描画距離: 3チャンク</option>
             <option value="2">描画距離: 2チャンク</option>
+            <option value="3">描画距離: 3チャンク</option>
             <option value="1">描画距離: 1チャンク</option>
         </select>
         <select id="mob-spawn-rate">
-            <option value="0.002">モブ出現率: 通常</option>
             <option value="0.001">モブ出現率: 低</option>
+            <option value="0.002">モブ出現率: 通常</option>
             <option value="0">モブ出現率: なし</option>
         </select>
         <button onclick="startGame()">ゲーム開始</button>
+        <p>操作説明:</p>
+        <p>WASD: 移動, スペース: ジャンプ, Shift: スプリント, E: インベントリ</p>
+        <p>左クリック: ブロック掘る, 右クリック: ブロック配置, F: 攻撃</p>
+        <p>1-9: スロット選択, C: ピッケルクラフト, V: 剣クラフト</p>
     </div>
     <div id="loading">地形を生成中… <span id="progress">0%</span></div>
     <div id="inventory"></div>
     <div id="inventory-detail"></div>
     <div id="crosshair"></div>
+    <div id="mouse-lock-message">画面をクリックして視点移動を有効にしてください</div>
+    <div id="weather"></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134/examples/js/controls/PointerLockControls.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
     <audio id="breakSound" src="https://www.myinstants.com/media/sounds/minecraft-dig-1.mp3" preload="auto"></audio>
+    <audio id="hitSound" src="https://www.myinstants.com/media/sounds/minecraft-hit-1.mp3" preload="auto"></audio>
     <script>
-        // 設定値（初期値）
-        let gameMode = 'survival';
-        let renderDistance = 3;
-        let mobSpawnRate = 0.002;
-        let fpsLimit = 60;
-        let worldSeed = '';
+        document.addEventListener('DOMContentLoaded', () => {
+            let gameMode = 'survival';
+            let renderDistance = 2;
+            let mobSpawnRate = 0.001;
+            let fpsLimit = 60;
+            let worldSeed = '';
+            let health = 20; // 10ハート
 
-        // スタート画面から設定を取得してゲーム開始
-        function startGame() {
-            gameMode = document.getElementById('game-mode').value;
-            renderDistance = parseInt(document.getElementById('render-distance').value);
-            mobSpawnRate = parseFloat(document.getElementById('mob-spawn-rate').value);
-            fpsLimit = parseInt(document.getElementById('fps-limit').value);
-            worldSeed = document.getElementById('world-seed').value || Math.random().toString();
-
-            document.getElementById('start-screen').style.display = 'none';
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('inventory').style.display = 'flex';
-            document.getElementById('crosshair').style.display = 'block';
-            document.querySelector('canvas').style.display = 'block';
-            loadInitialChunks();
-        }
-
-        // グローバル変数
-        let time = 0;
-        let dayTime = 0;
-
-        // シーンの設定
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(renderer.domElement);
-
-        // PointerLockControls
-        const controls = new THREE.PointerLockControls(camera, document.body);
-        scene.add(controls.getObject());
-        document.addEventListener('click', () => controls.lock(), { once: true });
-
-        // ライト（昼夜対応）
-        const ambientLight = new THREE.AmbientLight(0x606060, 1.5);
-        scene.add(ambientLight);
-        const sun = new THREE.DirectionalLight(0xffffff, 1.0);
-        sun.position.set(50, 50, 50).normalize();
-        scene.add(sun);
-
-        // 雲
-        const cloudGeometry = new THREE.PlaneGeometry(50, 10);
-        const cloudMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 });
-        const cloud = new THREE.Mesh(cloudGeometry, cloudMaterial);
-        cloud.position.set(0, 20, -50);
-        scene.add(cloud);
-
-        // ワールド設定
-        const blockSize = 1;
-        const chunkSize = 16;
-        const noise = new SimplexNoise(worldSeed);
-        const chunks = new Map();
-        const blockMap = new Map();
-        const blockMaterials = new Map();
-
-        // 所持品
-        const inventory = {
-            grass: 0, dirt: 0, stone: 0, wood: 0, leaves: 0,
-            sand: 0, ice: 0, jungleWood: 0, jungleLeaves: 0, water: 0,
-            lava: 0, ironOre: 0, goldOre: 0, pickaxe: 1, sword: 1
-        };
-        const inventoryDiv = document.getElementById('inventory');
-        const inventoryDetailDiv = document.getElementById('inventory-detail');
-        let selectedSlot = 0;
-
-        function updateInventory() {
-            inventoryDiv.innerHTML = '';
-            if (gameMode === 'survival') {
-                for (let i = 0; i < 10; i++) {
-                    const heart = document.createElement('div');
-                    heart.className = 'heart';
-                    inventoryDiv.appendChild(heart);
-                }
+            const canvas = document.createElement('canvas');
+            const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+            if (!gl) {
+                alert('WebGL 未サポート');
+                return;
             }
-            const slots = [
-                'pickaxe', 'sword', `grass:${inventory.grass}`, `dirt:${inventory.dirt}`, `stone:${inventory.stone}`,
-                `sand:${inventory.sand}`, `ice:${inventory.ice}`, `wood:${inventory.wood}`, `leaves:${inventory.leaves}`, `water:${inventory.water}`
-            ];
-            slots.forEach((item, index) => {
-                const slot = document.createElement('div');
-                slot.className = 'slot';
-                slot.textContent = item ? item : '';
-                if (index === selectedSlot) slot.style.border = '3px solid yellow';
-                inventoryDiv.appendChild(slot);
+
+            window.startGame = function() {
+                gameMode = document.getElementById('game-mode').value;
+                renderDistance = parseInt(document.getElementById('render-distance').value);
+                mobSpawnRate = parseFloat(document.getElementById('mob-spawn-rate').value);
+                fpsLimit = parseInt(document.getElementById('fps-limit').value);
+                worldSeed = document.getElementById('world-seed').value || Math.random().toString();
+                document.getElementById('start-screen').style.display = 'none';
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('inventory').style.display = 'flex';
+                document.getElementById('crosshair').style.display = 'block';
+                document.querySelector('canvas').style.display = 'block';
+                document.getElementById('mouse-lock-message').style.display = 'block';
+                loadInitialChunks();
+            };
+
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ antialias: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            const controls = new THREE.PointerLockControls(camera, document.body);
+            scene.add(controls.getObject());
+
+            const mouseLockMessage = document.getElementById('mouse-lock-message');
+            document.addEventListener('click', () => {
+                if (!controls.isLocked) {
+                    controls.lock();
+                }
             });
-        }
+            controls.addEventListener('lock', () => {
+                console.log('Pointer locked');
+                mouseLockMessage.style.display = 'none';
+            });
+            controls.addEventListener('unlock', () => {
+                console.log('Pointer unlocked');
+                mouseLockMessage.style.display = 'block';
+            });
 
-        function showInventoryDetail() {
-            inventoryDetailDiv.style.display = 'block';
-            inventoryDetailDiv.innerHTML = `
-                <h3>インベントリ</h3>
-                <p>草: ${inventory.grass}</p>
-                <p>土: ${inventory.dirt}</p>
-                <p>石: ${inventory.stone}</p>
-                <p>砂: ${inventory.sand}</p>
-                <p>氷: ${inventory.ice}</p>
-                <p>木: ${inventory.wood}</p>
-                <p>葉: ${inventory.leaves}</p>
-                <p>ジャングルの木: ${inventory.jungleWood}</p>
-                <p>ジャングルの葉: ${inventory.jungleLeaves}</p>
-                <p>水: ${inventory.water}</p>
-                <p>溶岩: ${inventory.lava}</p>
-                <p>鉄鉱石: ${inventory.ironOre}</p>
-                <p>金鉱石: ${inventory.goldOre}</p>
-                <p>ピッケル: ${inventory.pickaxe}</p>
-                <p>剣: ${inventory.sword}</p>
-            `;
-        }
+            const ambientLight = new THREE.AmbientLight(0x606060, 1.0);
+            scene.add(ambientLight);
+            const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+            sun.position.set(50, 50, 50).normalize();
+            scene.add(sun);
 
-        // クラフト
-        function craftItem(item1, item2) {
-            if ((item1 === 'wood' && item2 === 'wood' && inventory.wood >= 2) ||
-                (item1 === 'stone' && item2 === 'wood' && inventory.stone >= 1 && inventory.wood >= 1)) {
-                inventory[item1] -= (item1 === 'wood' ? 2 : 1);
-                inventory[item2] -= (item2 === 'wood' ? 1 : 0);
-                if (item1 === 'wood') inventory.pickaxe++;
-                else if (item1 === 'stone') inventory.sword++;
+            const blockSize = 1;
+            const chunkSize = 16;
+            const noise = new SimplexNoise(worldSeed);
+            const chunks = new Map();
+            const blockMap = new Map();
+            const blockMaterials = new Map();
+            const chunkPool = [];
+            const particles = [];
+            const inventory = {
+                grass: 0, dirt: 0, stone: 0, wood: 0, leaves: 0,
+                sand: 0, ice: 0, jungleWood: 0, jungleLeaves: 0, water: 0,
+                lava: 0, ironOre: 0, goldOre: 0, pickaxe: 1, sword: 1
+            };
+            const inventoryDiv = document.getElementById('inventory');
+            const inventoryDetailDiv = document.getElementById('inventory-detail');
+            let selectedSlot = 0;
+            let time = 0;
+            let dayTime = 0;
+            let weather = 'clear';
+
+            function updateInventory() {
+                if (!inventoryDiv) return;
+                inventoryDiv.innerHTML = '';
+                if (gameMode === 'survival') {
+                    for (let i = 0; i < Math.floor(health / 2); i++) {
+                        const heart = document.createElement('div');
+                        heart.className = 'heart';
+                        inventoryDiv.appendChild(heart);
+                    }
+                }
+                const slots = [
+                    inventory.pickaxe > 0 ? 'pickaxe' : '', inventory.sword > 0 ? 'sword' : '',
+                    `grass:${inventory.grass}`, `dirt:${inventory.dirt}`, `stone:${inventory.stone}`,
+                    `sand:${inventory.sand}`, `ice:${inventory.ice}`, `wood:${inventory.wood}`, `leaves:${inventory.leaves}`, `water:${inventory.water}`
+                ];
+                slots.forEach((item, index) => {
+                    if (index >= slots.length - 1 && item === '') return;
+                    const slot = document.createElement('div');
+                    slot.className = 'slot';
+                    if (item) {
+                        const [type, count] = item.split(':');
+                        slot.textContent = type || '';
+                        if (count) {
+                            const countDiv = document.createElement('div');
+                            countDiv.className = 'slot-count';
+                            countDiv.textContent = count;
+                            slot.appendChild(countDiv);
+                        }
+                    }
+                    if (index === selectedSlot) slot.style.border = '3px solid yellow';
+                    inventoryDiv.appendChild(slot);
+                });
+            }
+
+            function showInventoryDetail() {
+                if (!inventoryDetailDiv) return;
+                inventoryDetailDiv.style.display = 'block';
+                inventoryDetailDiv.innerHTML = `
+                    <h3>インベントリ</h3>
+                    <p>体力: ${health}/20</p>
+                    <p>草: ${inventory.grass}</p>
+                    <p>土: ${inventory.dirt}</p>
+                    <p>石: ${inventory.stone}</p>
+                    <p>砂: ${inventory.sand}</p>
+                    <p>氷: ${inventory.ice}</p>
+                    <p>木: ${inventory.wood}</p>
+                    <p>葉: ${inventory.leaves}</p>
+                    <p>ジャングルの木: ${inventory.jungleWood}</p>
+                    <p>ジャングルの葉: ${inventory.jungleLeaves}</p>
+                    <p>水: ${inventory.water}</p>
+                    <p>溶岩: ${inventory.lava}</p>
+                    <p>鉄鉱石: ${inventory.ironOre}</p>
+                    <p>金鉱石: ${inventory.goldOre}</p>
+                    <p>ピッケル: ${inventory.pickaxe}</p>
+                    <p>剣: ${inventory.sword}</p>
+                    <button onclick="craft('pickaxe')">ピッケル (木x2)</button>
+                    <button onclick="craft('sword')">剣 (石x1, 木x1)</button>
+                `;
+            }
+
+            function craft(item) {
+                if (item === 'pickaxe' && inventory.wood >= 2) {
+                    inventory.wood -= 2;
+                    inventory.pickaxe++;
+                } else if (item === 'sword' && inventory.stone >= 1 && inventory.wood >= 1) {
+                    inventory.stone -= 1;
+                    inventory.wood -= 1;
+                    inventory.sword++;
+                } else {
+                    alert('素材が足りません！');
+                    return;
+                }
                 updateInventory();
-                alert(`${item1} + ${item2} で ${item1 === 'wood' ? 'ピッケル' : '剣'} をクラフト！`);
-            } else {
-                alert('素材が足りません！');
+                inventoryDetailDiv.style.display = 'none';
+                alert(`${item} をクラフトしました！`);
             }
-        }
 
-        // チャンク生成（再利用なし）
-        function generateChunk(chunkX, chunkZ) {
-            const chunkKey = `${chunkX},${chunkZ}`;
-            if (chunks.has(chunkKey)) return;
+            function generateChunk(chunkX, chunkZ) {
+                const chunkKey = `${chunkX},${chunkZ}`;
+                let chunk = chunks.get(chunkKey);
 
-            const positions = [];
-            const colors = [];
-            const geometry = new THREE.BufferGeometry();
+                if (chunk) return chunk;
 
-            for (let x = 0; x < chunkSize; x++) {
-                for (let z = 0; z < chunkSize; z++) {
-                    const worldX = chunkX * chunkSize + x;
-                    const worldZ = chunkZ * chunkSize + z;
-                    const heightNoise = noise.noise2D(worldX * 0.05, worldZ * 0.05);
-                    const biomeNoise = noise.noise2D(worldX * 0.02, worldZ * 0.02);
-                    const caveNoise = noise.noise3D(worldX * 0.1, worldZ * 0.1, Math.random() * 10);
-                    let height = Math.floor(heightNoise * 10 + 10);
+                let positions = [], colors = [];
+                let geometry;
 
-                    let biome = 'plain';
-                    if (biomeNoise > 0.3) { biome = 'desert'; height = Math.floor(heightNoise * 5 + 2); }
-                    else if (biomeNoise < -0.3) { biome = 'snow'; height = Math.floor(heightNoise * 8 + 8); }
-                    else if (biomeNoise > 0 && biomeNoise < 0.1) { biome = 'jungle'; height = Math.floor(heightNoise * 12 + 12); }
-                    else if (heightNoise < -0.2) { biome = 'ocean'; height = 0; }
+                if (chunkPool.length > 0) {
+                    const pooled = chunkPool.pop();
+                    geometry = pooled.geometry;
+                    positions = Array.from(geometry.getAttribute('position').array);
+                    colors = Array.from(geometry.getAttribute('color').array);
+                    scene.add(pooled);
+                    chunk = pooled;
+                } else {
+                    geometry = new THREE.BufferGeometry();
+                    const opaqueMaterial = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+                    chunk = new THREE.Mesh(geometry, opaqueMaterial);
+                    scene.add(chunk);
+                }
 
-                    for (let y = -15; y < height; y++) {
-                        const cave = caveNoise > 0.65 && y < 0;
-                        if (cave) continue;
+                for (let x = 0; x < chunkSize; x++) {
+                    for (let z = 0; z < chunkSize; z++) {
+                        const worldX = chunkX * chunkSize + x;
+                        const worldZ = chunkZ * chunkSize + z;
+                        const heightNoise = noise.noise2D(worldX * 0.05, worldZ * 0.05);
+                        const biomeNoise = noise.noise2D(worldX * 0.02, worldZ * 0.02);
+                        let height = Math.floor(heightNoise * 10 + 10);
 
-                        let color, type;
-                        if (biome === 'desert') { color = 0xffff99; type = 'sand'; }
-                        else if (biome === 'snow') { color = (y === height - 1) ? 0xE0FFFF : 0x808080; type = (y === height - 1) ? 'ice' : 'stone'; }
-                        else if (biome === 'ocean') { color = 0x0000FF; type = 'water'; }
-                        else if (biome === 'jungle') { color = (y === height - 1) ? 0x00ff00 : (y > height - 4) ? 0x8b4513 : 0x808080; type = (y === height - 1) ? 'grass' : (y > height - 4) ? 'dirt' : 'stone'; }
-                        else { color = (y === height - 1) ? 0x00ff00 : (y > height - 4) ? 0x8b4513 : 0x808080; type = (y === height - 1) ? 'grass' : (y > height - 4) ? 'dirt' : 'stone'; }
+                        let biome = 'plain';
+                        if (biomeNoise > 0.3) { biome = 'desert'; height = Math.floor(heightNoise * 5 + 2); }
+                        else if (biomeNoise < -0.3) { biome = 'snow'; height = Math.floor(heightNoise * 8 + 8); }
+                        else if (biomeNoise > 0 && biomeNoise < 0.1) { biome = 'jungle'; height = Math.floor(heightNoise * 12 + 12); }
+                        else if (heightNoise < -0.2) { biome = 'ocean'; height = 0; }
 
-                        if (y < -5 && Math.random() < 0.01) { color = 0xC0C0C0; type = 'ironOre'; }
-                        else if (y < -8 && Math.random() < 0.005) { color = 0xFFD700; type = 'goldOre'; }
+                        for (let y = -15; y <= height; y++) {
+                            let color, type;
+                            if (biome === 'desert') { color = 0xffff99; type = 'sand'; }
+                            else if (biome === 'snow') { color = (y === height) ? 0xE0FFFF : 0x808080; type = (y === height) ? 'ice' : 'stone'; }
+                            else if (biome === 'ocean') { color = 0x0000FF; type = 'water'; }
+                            else if (biome === 'jungle') { color = (y === height) ? 0x00ff00 : (y > height - 4) ? 0x8b4513 : 0x808080; type = (y === height) ? 'grass' : (y > height - 4) ? 'dirt' : 'stone'; }
+                            else { color = (y === height) ? 0x00ff00 : (y > height - 4) ? 0x8b4513 : 0x808080; type = (y === height) ? 'grass' : (y > height - 4) ? 'dirt' : 'stone'; }
 
-                        blockMap.set(`${worldX},${y},${worldZ}`, { color, type });
-                        addCube(positions, colors, worldX, y, worldZ, color);
-                    }
+                            if (y < -5 && Math.random() < 0.005) { color = 0xC0C0C0; type = 'ironOre'; }
+                            else if (y < -8 && Math.random() < 0.0025) { color = 0xFFD700; type = 'goldOre'; }
 
-                    if (Math.random() < 0.05 && height > 5 && biome !== 'ocean') {
-                        const trunkHeight = Math.floor(Math.random() * 3) + 3;
-                        for (let y = 0; y < trunkHeight; y++) {
-                            const woodColor = biome === 'jungle' ? 0x4A2F0A : 0x8b4513;
-                            const woodType = biome === 'jungle' ? 'jungleWood' : 'wood';
-                            blockMap.set(`${worldX},${height + y},${worldZ}`, { color: woodColor, type: woodType });
-                            addCube(positions, colors, worldX, height + y, worldZ, woodColor);
+                            blockMap.set(`${worldX},${y},${worldZ}`, { color, type });
+                            addCube(positions, colors, worldX, y, worldZ, color);
                         }
-                        for (let lx = -2; lx <= 2; lx++) for (let lz = -2; lz <= 2; lz++) for (let ly = 0; ly < 2; ly++) {
-                            if (Math.abs(lx) === 2 && Math.abs(lz) === 2) continue;
-                            const leafColor = biome === 'jungle' ? 0x228B22 : 0x00cc00;
-                            const leafType = biome === 'jungle' ? 'jungleLeaves' : 'leaves';
-                            blockMap.set(`${worldX + lx},${height + trunkHeight + ly},${worldZ + lz}`, { color: leafColor, type: leafType });
-                            addCube(positions, colors, worldX + lx, height + trunkHeight + ly, worldZ + lz, leafColor);
-                        }
-                    }
 
-                    if (Math.random() < 0.01 && biome !== 'ocean') {
-                        for (let vx = 0; vx < 4; vx++) for (let vz = 0; vz < 4; vz++) for (let vy = 0; vy < 3; vy++) {
-                            if (vx === 0 || vx === 3 || vz === 0 || vz === 3 || vy === 2) {
-                                blockMap.set(`${worldX + vx},${height + vy},${worldZ + vz}`, { color: 0x8b4513, type: 'wood' });
-                                addCube(positions, colors, worldX + vx, height + vy, worldZ + vz, 0x8b4513);
+                        if (Math.random() < 0.03 && height > 5 && biome !== 'ocean') {
+                            const trunkHeight = Math.floor(Math.random() * 3) + 3;
+                            for (let y = 0; y < trunkHeight; y++) {
+                                const woodColor = biome === 'jungle' ? 0x4A2F0A : 0x8b4513;
+                                const woodType = biome === 'jungle' ? 'jungleWood' : 'wood';
+                                blockMap.set(`${worldX},${height + y},${worldZ}`, { color: woodColor, type: woodType });
+                                addCube(positions, colors, worldX, height + y, worldZ, woodColor);
+                            }
+                            for (let lx = -2; lx <= 2; lx++) for (let lz = -2; lz <= 2; lz++) for (let ly = 0; ly < 2; ly++) {
+                                if (Math.abs(lx) === 2 && Math.abs(lz) === 2) continue;
+                                const leafColor = biome === 'jungle' ? 0x228B22 : 0x00cc00;
+                                const leafType = biome === 'jungle' ? 'jungleLeaves' : 'leaves';
+                                blockMap.set(`${worldX + lx},${height + trunkHeight + ly},${worldZ + lz}`, { color: leafColor, type: leafType });
+                                addCube(positions, colors, worldX + lx, height + trunkHeight + ly, worldZ + lz, leafColor);
                             }
                         }
-                    } else if (Math.random() < 0.005) {
-                        for (let vx = 0; vx < 3; vx++) for (let vz = 0; vz < 3; vz++) for (let vy = 0; vy < 2; vy++) {
-                            if (Math.random() < 0.7) {
-                                blockMap.set(`${worldX + vx},${height + vy},${worldZ + vz}`, { color: 0x808080, type: 'stone' });
-                                addCube(positions, colors, worldX + vx, height + vy, worldZ + vz, 0x808080);
+                    }
+                }
+
+                geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(positions), 3));
+                geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(colors), 3));
+                geometry.computeVertexNormals();
+                chunks.set(chunkKey, chunk);
+
+                updateFluidBlocks(chunk, chunkKey);
+                return chunk;
+            }
+
+            function addCube(positions, colors, x, y, z, color) {
+                const vertices = [[0,0,0], [1,0,0], [1,1,0], [0,1,0], [0,0,1], [1,0,1], [1,1,1], [0,1,1]];
+                const faces = [[0,1,2],[0,2,3],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[2,3,7],[2,7,6],[0,3,7],[0,7,4],[1,2,6],[1,6,5]];
+                const r = (color >> 16 & 255) / 255;
+                const g = (color >> 8 & 255) / 255;
+                const b = (color & 255) / 255;
+
+                faces.forEach(face => face.forEach(vertexIdx => {
+                    const v = vertices[vertexIdx];
+                    positions.push(x + v[0], y + v[1], z + v[2]);
+                    colors.push(r, g, b);
+                }));
+            }
+
+            function createParticle(x, y, z, color) {
+                const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+                const material = new THREE.MeshBasicMaterial({ color });
+                const particle = new THREE.Mesh(geometry, material);
+                particle.position.set(x + Math.random() * 0.5 - 0.25, y + Math.random() * 0.5 - 0.25, z + Math.random() * 0.5 - 0.25);
+                particle.userData = { life: 1.0, vy: Math.random() * 0.5 };
+                scene.add(particle);
+                particles.push(particle);
+            }
+
+            function updateFluidBlocks(chunk, chunkKey) {
+                if (blockMaterials.has(chunkKey)) return;
+
+                const fluidGeometry = new THREE.BufferGeometry();
+                const fluidPositions = [];
+                const fluidColors = [];
+
+                for (let [key, block] of blockMap) {
+                    const [x, y, z] = key.split(',').map(Number);
+                    const chunkCoordX = Math.floor(x / chunkSize);
+                    const chunkCoordZ = Math.floor(z / chunkSize);
+                    if (chunkCoordX === parseInt(chunkKey.split(',')[0]) && chunkCoordZ === parseInt(chunkKey.split(',')[1])) {
+                        if (block.type === 'water' || block.type === 'lava') {
+                            addCube(fluidPositions, fluidColors, x, y, z, block.color);
+                        }
+                    }
+                }
+
+                if (fluidPositions.length === 0) return;
+
+                fluidGeometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(fluidPositions), 3));
+                fluidGeometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(fluidColors), 3));
+                fluidGeometry.computeVertexNormals();
+                const fluidMaterial = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+                const fluidMesh = new THREE.Mesh(fluidGeometry, fluidMaterial);
+                scene.add(fluidMesh);
+                blockMaterials.set(chunkKey, { fluid: fluidMaterial, fluidMesh });
+            }
+
+            function updateFluidOpacity() {
+                if (time % 1000 < 16) {
+                    for (let [key, materials] of blockMaterials) {
+                        materials.fluid.opacity = 0.6;
+                        materials.fluid.needsUpdate = true;
+                    }
+                }
+            }
+
+            const mobs = [];
+            function spawnMob(type, x, y, z) {
+                if (mobs.length > 20) return;
+                const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+                let color, height, health;
+                switch (type) {
+                    case 'cow': color = 0x000000; height = 0.75; health = 10; break;
+                    case 'sheep': color = 0xFFFFFF; height = 0.6; health = 8; break;
+                    case 'chicken': color = 0xFFA500; height = 0.4; health = 4; break;
+                    case 'zombie': color = 0x00FF00; height = 0.75; health = 20; break;
+                }
+                const material = new THREE.MeshBasicMaterial({ color });
+                const mob = new THREE.Mesh(geometry, material);
+                mob.scale.set(1, height, 1);
+                mob.position.set(x, y + 1, z);
+                mob.userData = { type, health, vx: (Math.random() - 0.5) * 0.03, vz: (Math.random() - 0.5) * 0.03 };
+                scene.add(mob);
+                mobs.push(mob);
+            }
+
+            function updateChunks() {
+                const playerChunkX = Math.floor(camera.position.x / chunkSize);
+                const playerChunkZ = Math.floor(camera.position.z / chunkSize);
+
+                for (let cx = playerChunkX - renderDistance; cx <= playerChunkX + renderDistance; cx++) {
+                    for (let cz = playerChunkZ - renderDistance; cz <= playerChunkZ + renderDistance; cz++) {
+                        const chunkKey = `${cx},${cz}`;
+                        if (!chunks.has(chunkKey)) {
+                            generateChunk(cx, cz);
+                            if (Math.random() < mobSpawnRate / 2) {
+                                const mobType = Math.random() < 0.7 ? (Math.random() < 0.33 ? 'cow' : Math.random() < 0.66 ? 'sheep' : 'chicken') : 'zombie';
+                                spawnMob(mobType, cx * chunkSize + Math.random() * chunkSize, 0, cz * chunkSize + Math.random() * chunkSize);
                             }
                         }
-                    } else if (Math.random() < 0.002) {
-                        for (let vx = -3; vx <= 3; vx++) for (let vz = -3; vz <= 3; vz++) for (let vy = 0; vy < 5 - Math.max(Math.abs(vx), Math.abs(vz)); vy++) {
-                            blockMap.set(`${worldX + vx},${height + vy},${worldZ + vz}`, { color: 0xffff99, type: 'sand' });
-                            addCube(positions, colors, worldX + vx, height + vy, worldZ + vz, 0xffff99);
+                    }
+                }
+
+                for (let [key, chunk] of chunks) {
+                    const [cx, cz] = key.split(',').map(Number);
+                    if (Math.abs(cx - playerChunkX) > renderDistance + 1 || Math.abs(cz - playerChunkZ) > renderDistance + 1) {
+                        const materials = blockMaterials.get(key);
+                        if (materials) {
+                            scene.remove(materials.fluidMesh);
+                            materials.fluidMesh.geometry.dispose();
+                            materials.fluid.dispose();
+                            blockMaterials.delete(key);
+                        }
+                        scene.remove(chunk);
+                        chunk.geometry.dispose();
+                        chunk.material.dispose();
+                        chunks.delete(key);
+                        chunkPool.push(chunk);
+                        for (let [blockKey] of blockMap) {
+                            const [bx, , bz] = blockKey.split(',').map(Number);
+                            if (Math.floor(bx / chunkSize) === cx && Math.floor(bz / chunkSize) === cz) {
+                                blockMap.delete(blockKey);
+                            }
                         }
                     }
                 }
             }
 
-            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-            geometry.computeVertexNormals();
-            const opaqueMaterial = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: false });
-            const chunk = new THREE.Mesh(geometry, opaqueMaterial);
-            scene.add(chunk);
-            chunks.set(chunkKey, chunk);
+            let loadedChunks = 0;
+            const totalChunks = (2 * renderDistance + 1) * (2 * renderDistance + 1);
+            const loadingDiv = document.getElementById('loading');
+            const progressSpan = document.getElementById('progress');
 
-            updateFluidBlocks(chunk, chunkKey);
-        }
-
-        // 立方体を追加
-        function addCube(positions, colors, x, y, z, color) {
-            const vertices = [[0,0,0], [1,0,0], [1,1,0], [0,1,0], [0,0,1], [1,0,1], [1,1,1], [0,1,1]];
-            const faces = [[0,1,2],[0,2,3],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[2,3,7],[2,7,6],[0,3,7],[0,7,4],[1,2,6],[1,6,5]];
-            const r = (color >> 16 & 255) / 255;
-            const g = (color >> 8 & 255) / 255;
-            const b = (color & 255) / 255;
-
-            faces.forEach(face => face.forEach(vertexIdx => {
-                const v = vertices[vertexIdx];
-                positions.push(x + v[0], y + v[1], z + v[2]);
-                colors.push(r, g, b);
-            }));
-        }
-
-        // 水と溶岩のブロックに透明マテリアルを適用
-        function updateFluidBlocks(chunk, chunkKey) {
-            const fluidGeometry = new THREE.BufferGeometry();
-            const fluidPositions = [];
-            const fluidColors = [];
-
-            for (let [key, block] of blockMap) {
-                const [x, y, z] = key.split(',').map(Number);
-                if (block.type === 'water' || block.type === 'lava') {
-                    addCube(fluidPositions, fluidColors, x, y, z, block.color);
-                }
-            }
-
-            fluidGeometry.setAttribute('position', new THREE.Float32BufferAttribute(fluidPositions, 3));
-            fluidGeometry.setAttribute('color', new THREE.Float32BufferAttribute(fluidColors, 3));
-            fluidGeometry.computeVertexNormals();
-            const fluidMaterial = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, side: THREE.DoubleSide });
-            const fluidMesh = new THREE.Mesh(fluidGeometry, fluidMaterial);
-            scene.add(fluidMesh);
-            blockMaterials.set(chunkKey, { opaque: chunk.material, fluid: fluidMaterial, fluidMesh });
-        }
-
-        function updateFluidOpacity() {
-            for (let [key, materials] of blockMaterials) {
-                const opacity = Math.sin(time / 1000) * 0.2 + 0.5;
-                materials.fluid.opacity = opacity;
-                materials.fluid.needsUpdate = true;
-            }
-        }
-
-        // モブ
-        const mobs = [];
-        function spawnMob(type, x, y, z) {
-            const geometry = new THREE.BoxGeometry(1, 1, 1);
-            let color, height;
-            switch (type) {
-                case 'cow': color = 0x000000; height = 1.5; break;
-                case 'sheep': color = 0xFFFFFF; height = 1.2; break;
-                case 'chicken': color = 0xFFA500; height = 0.8; break;
-            }
-            const material = new THREE.MeshLambertMaterial({ color });
-            const mob = new THREE.Mesh(geometry, material);
-            mob.scale.set(1, height, 1);
-            mob.position.set(x, y + 1, z);
-            mob.userData = { type, vx: (Math.random() - 0.5) * 0.05, vz: (Math.random() - 0.5) * 0.05 };
-            scene.add(mob);
-            mobs.push(mob);
-        }
-
-        // チャンク更新
-        function updateChunks() {
-            const playerChunkX = Math.floor(camera.position.x / chunkSize);
-            const playerChunkZ = Math.floor(camera.position.z / chunkSize);
-
-            for (let cx = playerChunkX - renderDistance; cx <= playerChunkX + renderDistance; cx++) {
-                for (let cz = playerChunkZ - renderDistance; cz <= playerChunkZ + renderDistance; cz++) {
-                    const chunkKey = `${cx},${cz}`;
-                    if (!chunks.has(chunkKey)) {
+            function loadInitialChunks() {
+                const playerChunkX = 0;
+                const playerChunkZ = 0;
+                for (let cx = playerChunkX - renderDistance; cx <= playerChunkX + renderDistance; cx++) {
+                    for (let cz = playerChunkZ - renderDistance; cz <= playerChunkZ + renderDistance; cz++) {
                         generateChunk(cx, cz);
-                        if (Math.random() < mobSpawnRate) {
-                            const mobType = Math.random() < 0.33 ? 'cow' : Math.random() < 0.66 ? 'sheep' : 'chicken';
-                            spawnMob(mobType, cx * chunkSize + Math.random() * chunkSize, 0, cz * chunkSize + Math.random() * chunkSize);
+                        loadedChunks++;
+                        progressSpan.textContent = `${Math.floor((loadedChunks / totalChunks) * 100)}%`;
+                        if (loadedChunks === totalChunks) {
+                            setTimeout(() => { loadingDiv.style.display = 'none'; animate(); }, 500);
                         }
                     }
                 }
             }
 
-            for (let [key, chunk] of chunks) {
-                const [cx, cz] = key.split(',').map(Number);
-                if (Math.abs(cx - playerChunkX) > renderDistance + 1 || Math.abs(cz - playerChunkZ) > renderDistance + 1) {
-                    const materials = blockMaterials.get(key);
-                    if (materials) {
-                        scene.remove(materials.fluidMesh);
-                        materials.fluidMesh.geometry.dispose();
-                        materials.fluidMesh.material.dispose();
+            const velocity = new THREE.Vector3();
+            let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false, canJump = false, isSprinting = false;
+            const baseSpeed = 4.3; // Minecraft の歩行速度（4.3ブロック/秒）
+            const sprintSpeed = baseSpeed * 1.3; // スプリントは1.3倍
+            const gravity = gameMode === 'creative' ? 0 : -9.8;
+            const jumpVelocity = 4.5;
+
+            document.addEventListener('keydown', (event) => {
+                switch (event.key.toLowerCase()) {
+                    case 'w': moveForward = true; break;
+                    case 's': moveBackward = true; break;
+                    case 'a': moveLeft = true; break;
+                    case 'd': moveRight = true; break;
+                    case ' ': if (canJump || gameMode === 'creative') { velocity.y = jumpVelocity; canJump = false; } break;
+                    case 'shift': isSprinting = true; break;
+                    case 'e': showInventoryDetail(); break;
+                    case 'f': attack(); break;
+                    case '1': case '2': case '3': case '4': case '5':
+                    case '6': case '7': case '8': case '9': selectedSlot = parseInt(event.key) - 1; updateInventory(); break;
+                }
+            });
+
+            document.addEventListener('keyup', (event) => {
+                switch (event.key.toLowerCase()) {
+                    case 'w': moveForward = false; break;
+                    case 's': moveBackward = false; break;
+                    case 'a': moveLeft = false; break;
+                    case 'd': moveRight = false; break;
+                    case 'shift': isSprinting = false; break;
+                    case 'e': inventoryDetailDiv.style.display = 'none'; break;
+                }
+            });
+
+            const breakSound = document.getElementById('breakSound');
+            const hitSound = document.getElementById('hitSound');
+            document.addEventListener('mousedown', (event) => {
+                event.preventDefault();
+                if (event.button === 0) { // 左クリック
+                    if (gameMode === 'creative' || inventory.pickaxe > 0) {
+                        const raycaster = new THREE.Raycaster();
+                        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+                        const intersects = raycaster.intersectObjects([...Array.from(chunks.values()), ...mobs], true);
+
+                        if (intersects.length > 0) {
+                            const intersect = intersects[0];
+                            if (intersect.object.userData?.type) {
+                                console.log(`Hit ${intersect.object.userData.type}!`);
+                                return;
+                            }
+                            const pos = intersect.point.clone().sub(intersect.face.normal.multiplyScalar(0.5));
+                            const blockX = Math.floor(pos.x);
+                            const blockY = Math.floor(pos.y);
+                            const blockZ = Math.floor(pos.z);
+
+                            const blockKey = `${blockX},${blockY},${blockZ}`;
+                            if (blockMap.has(blockKey)) {
+                                const block = blockMap.get(blockKey);
+                                if (gameMode === 'survival') inventory[block.type]++;
+                                updateInventory();
+                                breakSound.currentTime = 0;
+                                breakSound.play();
+
+                                // パーティクル生成
+                                for (let i = 0; i < 5; i++) createParticle(blockX, blockY, blockZ, block.color);
+
+                                blockMap.delete(blockKey);
+                                const chunkX = Math.floor(blockX / chunkSize);
+                                const chunkZ = Math.floor(blockZ / chunkSize);
+                                const chunkKey = `${chunkX},${chunkZ}`;
+                                const chunk = chunks.get(chunkKey);
+                                if (chunk) {
+                                    scene.remove(chunk);
+                                    const fluidMaterials = blockMaterials.get(chunkKey);
+                                    if (fluidMaterials) {
+                                        scene.remove(fluidMaterials.fluidMesh);
+                                        blockMaterials.delete(chunkKey);
+                                    }
+                                    chunks.delete(chunkKey);
+                                    generateChunk(chunkX, chunkZ);
+                                }
+                            }
+                        }
                     }
-                    scene.remove(chunk);
-                    chunk.geometry.dispose();
-                    chunk.material.dispose();
-                    chunks.delete(key);
-                    blockMaterials.delete(key);
-                    for (let [blockKey] of blockMap) {
-                        const [bx, , bz] = blockKey.split(',').map(Number);
-                        if (Math.floor(bx / chunkSize) === cx && Math.floor(bz / chunkSize) === cz) {
-                            blockMap.delete(blockKey);
+                } else if (event.button === 2) { // 右クリック
+                    const raycaster = new THREE.Raycaster();
+                    raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+                    const intersects = raycaster.intersectObjects([...Array.from(chunks.values())], true);
+
+                    if (intersects.length > 0) {
+                        const intersect = intersects[0];
+                        const pos = intersect.point.clone().add(intersect.face.normal.multiplyScalar(0.5));
+                        const blockX = Math.floor(pos.x);
+                        const blockY = Math.floor(pos.y);
+                        const blockZ = Math.floor(pos.z);
+
+                        const blockKey = `${blockX},${blockY},${blockZ}`;
+                        if (!blockMap.has(blockKey)) {
+                            const selectedItem = [
+                                '', '', 'grass', 'dirt', 'stone',
+                                'sand', 'ice', 'wood', 'leaves', 'water'
+                            ][selectedSlot];
+                            if (selectedItem && gameMode !== 'creative' && inventory[selectedItem] <= 0) {
+                                alert('ブロックがありません！');
+                                return;
+                            }
+                            if (selectedItem) {
+                                if (gameMode === 'survival') inventory[selectedItem]--;
+                                let color;
+                                switch (selectedItem) {
+                                    case 'grass': color = 0x00ff00; break;
+                                    case 'dirt': color = 0x8b4513; break;
+                                    case 'stone': color = 0x808080; break;
+                                    case 'sand': color = 0xffff99; break;
+                                    case 'ice': color = 0xE0FFFF; break;
+                                    case 'wood': color = 0x8b4513; break;
+                                    case 'leaves': color = 0x00cc00; break;
+                                    case 'water': color = 0x0000FF; break;
+                                    default: return;
+                                }
+                                blockMap.set(blockKey, { color, type: selectedItem });
+                                updateInventory();
+
+                                const chunkX = Math.floor(blockX / chunkSize);
+                                const chunkZ = Math.floor(blockZ / chunkSize);
+                                const chunkKey = `${chunkX},${chunkZ}`;
+                                const chunk = chunks.get(chunkKey);
+                                if (chunk) {
+                                    scene.remove(chunk);
+                                    const fluidMaterials = blockMaterials.get(chunkKey);
+                                    if (fluidMaterials) {
+                                        scene.remove(fluidMaterials.fluidMesh);
+                                        blockMaterials.delete(chunkKey);
+                                    }
+                                    chunks.delete(chunkKey);
+                                    generateChunk(chunkX, chunkZ);
+                                }
+                            }
                         }
                     }
                 }
-            }
-        }
+            }, { passive: false });
 
-        // 初期ロード
-        let loadedChunks = 0;
-        const totalChunks = (2 * renderDistance + 1) * (2 * renderDistance + 1);
-        const loadingDiv = document.getElementById('loading');
-        const progressSpan = document.getElementById('progress');
-
-        function loadInitialChunks() {
-            const playerChunkX = 0;
-            const playerChunkZ = 0;
-            for (let cx = playerChunkX - renderDistance; cx <= playerChunkX + renderDistance; cx++) {
-                for (let cz = playerChunkZ - renderDistance; cz <= playerChunkZ + renderDistance; cz++) {
-                    generateChunk(cx, cz);
-                    loadedChunks++;
-                    progressSpan.textContent = `${Math.floor((loadedChunks / totalChunks) * 100)}%`;
-                    if (loadedChunks === totalChunks) {
-                        setTimeout(() => { loadingDiv.style.display = 'none'; animate(); }, 500);
-                    }
-                }
-            }
-        }
-
-        // 移動制御と物理
-        const velocity = new THREE.Vector3();
-        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false, canJump = false, isSprinting = false;
-        const baseSpeed = 30;
-        const sprintSpeed = baseSpeed * 1.3;
-        const gravity = gameMode === 'creative' ? 0 : -20;
-        const jumpVelocity = 8;
-
-        document.addEventListener('keydown', (event) => {
-            switch (event.key) {
-                case 'w': moveForward = true; break;
-                case 's': moveBackward = true; break;
-                case 'a': moveLeft = true; break;
-                case 'd': moveRight = true; break;
-                case ' ': if (gameMode === 'creative') velocity.y = jumpVelocity; else if (canJump) velocity.y = jumpVelocity; canJump = false; break;
-                case 'Shift': if (gameMode === 'creative') velocity.y = -jumpVelocity; else isSprinting = true; break;
-                case 'e': showInventoryDetail(); break;
-                case '1': case '2': case '3': case '4': case '5':
-                case '6': case '7': case '8': case '9': selectedSlot = parseInt(event.key) - 1; updateInventory(); break;
-                case '0': selectedSlot = 9; updateInventory(); break;
-                case 'c': craftItem('wood', 'wood'); break;
-                case 'v': craftItem('stone', 'wood'); break;
-            }
-        });
-        document.addEventListener('keyup', (event) => {
-            switch (event.key) {
-                case 'w': moveForward = false; break;
-                case 's': moveBackward = false; break;
-                case 'a': moveLeft = false; break;
-                case 'd': moveRight = false; break;
-                case 'Shift': if (gameMode === 'creative') velocity.y = 0; else isSprinting = false; break;
-                case 'e': inventoryDetailDiv.style.display = 'none'; break;
-            }
-        });
-
-        // ブロック掘る機能
-        const breakSound = document.getElementById('breakSound');
-        document.addEventListener('mousedown', () => {
-            if (gameMode === 'creative' || inventory.pickaxe > 0) {
+            function attack() {
+                if (inventory.sword <= 0) return;
                 const raycaster = new THREE.Raycaster();
                 raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-                const intersects = raycaster.intersectObjects([...Array.from(chunks.values()), ...mobs], true);
+                const intersects = raycaster.intersectObjects(mobs, true);
 
                 if (intersects.length > 0) {
-                    const intersect = intersects[0];
-                    if (intersect.object.userData?.type) {
-                        console.log(`Hit ${intersect.object.userData.type}!`);
-                        return;
+                    const mob = intersects[0].object;
+                    mob.userData.health -= 4;
+                    hitSound.currentTime = 0;
+                    hitSound.play();
+                    if (mob.userData.health <= 0) {
+                        scene.remove(mob);
+                        mobs.splice(mobs.indexOf(mob), 1);
                     }
-                    const pos = intersect.point.clone().sub(intersect.face.normal.multiplyScalar(0.5));
-                    const blockX = Math.floor(pos.x);
-                    const blockY = Math.floor(pos.y);
-                    const blockZ = Math.floor(pos.z);
+                }
+            }
 
-                    const blockKey = `${blockX},${blockY},${blockZ}`;
-                    if (blockMap.has(blockKey)) {
-                        const block = blockMap.get(blockKey);
-                        if (gameMode === 'survival') inventory[block.type]++;
+            camera.position.y = 10;
+
+            let prevTime = performance.now();
+            let frameTime = fpsLimit > 0 ? 1000 / fpsLimit : 0;
+            let lastFrame = performance.now();
+            let lastUpdate = performance.now();
+
+            function animate() {
+                requestAnimationFrame(animate);
+
+                const now = performance.now();
+                if (fpsLimit > 0 && (now - lastFrame) < frameTime) return;
+                lastFrame = now;
+
+                time = now;
+                const delta = (time - prevTime) / 1000;
+                prevTime = time;
+
+                // 移動処理
+                velocity.x *= 0.9; // 減衰
+                velocity.z *= 0.9;
+                velocity.y += gravity * delta;
+
+                const direction = new THREE.Vector3();
+                if (moveForward) direction.z -= 1;
+                if (moveBackward) direction.z += 1;
+                if (moveLeft) direction.x -= 1;
+                if (moveRight) direction.x += 1;
+                direction.normalize();
+
+                const speed = isSprinting ? sprintSpeed : baseSpeed;
+                if (moveForward || moveBackward || moveLeft || moveRight) {
+                    velocity.x += direction.x * speed * delta * 10;
+                    velocity.z += direction.z * speed * delta * 10;
+                }
+
+                controls.moveRight(velocity.x * delta);
+                controls.moveForward(velocity.z * delta);
+                camera.position.y += velocity.y * delta;
+
+                if (gameMode !== 'creative') {
+                    const groundHeight = getGroundHeight(camera.position.x, camera.position.z);
+                    if (camera.position.y <= groundHeight + 1.6) {
+                        camera.position.y = groundHeight + 1.6;
+                        velocity.y = 0;
+                        canJump = true;
+                    } else if (camera.position.y > groundHeight + 1.6 + 5) {
+                        health -= 0.1; // 落下ダメージ
                         updateInventory();
-                        breakSound.currentTime = 0;
-                        breakSound.play();
-
-                        blockMap.delete(blockKey);
-                        const chunkX = Math.floor(blockX / chunkSize);
-                        const chunkZ = Math.floor(blockZ / chunkSize);
-                        const chunkKey = `${chunkX},${chunkZ}`;
-                        const chunk = chunks.get(chunkKey);
-                        if (chunk) {
-                            scene.remove(chunk);
-                            const fluidMaterials = blockMaterials.get(chunkKey);
-                            if (fluidMaterials) scene.remove(fluidMaterials.fluidMesh);
-                            chunks.delete(chunkKey);
-                            blockMaterials.delete(chunkKey);
-                            generateChunk(chunkX, chunkZ);
-                        }
                     }
                 }
-            }
-        }, { passive: true });
 
-        camera.position.y = 10;
+                dayTime += 0.005;
+                const lightIntensity = Math.sin(dayTime) * 0.5 + 0.5 + 0.3;
+                sun.intensity = lightIntensity;
+                ambientLight.intensity = lightIntensity * 0.6;
 
-        // アニメーションループ（FPS制限付き）
-        let prevTime = performance.now();
-        let frameTime = fpsLimit > 0 ? 1000 / fpsLimit : 0;
-        let lastFrame = performance.now();
-
-        function animate() {
-            requestAnimationFrame(animate);
-
-            const now = performance.now();
-            if (fpsLimit > 0 && (now - lastFrame) < frameTime) return;
-            lastFrame = now;
-
-            time = now;
-            const delta = (time - prevTime) / 1000;
-            prevTime = time;
-
-            velocity.x -= velocity.x * 10.0 * delta;
-            velocity.z -= velocity.z * 10.0 * delta;
-            velocity.y += gravity * delta;
-
-            const direction = new THREE.Vector3();
-            direction.z = Number(moveForward) - Number(moveBackward);
-            direction.x = Number(moveRight) - Number(moveLeft);
-            direction.normalize();
-
-            const currentSpeed = isSprinting ? sprintSpeed : baseSpeed;
-            if (moveForward || moveBackward) velocity.z -= direction.z * currentSpeed * delta;
-            if (moveLeft || moveRight) velocity.x -= direction.x * currentSpeed * delta;
-
-            controls.moveRight(-velocity.x * delta);
-            controls.moveForward(-velocity.z * delta);
-            camera.position.y += velocity.y * delta;
-
-            if (gameMode !== 'creative') {
-                const groundHeight = getGroundHeight(camera.position.x, camera.position.z);
-                if (camera.position.y < groundHeight + 1.8) {
-                    camera.position.y = groundHeight + 1.8;
-                    velocity.y = 0;
-                    canJump = true;
+                if (Math.random() < 0.001 && weather === 'clear') {
+                    weather = 'rain';
+                    document.getElementById('weather').textContent = '天気: 雨';
+                } else if (Math.random() < 0.0005 && weather === 'rain') {
+                    weather = 'clear';
+                    document.getElementById('weather').textContent = '天気: 晴れ';
                 }
-            }
 
-            dayTime += 0.01;
-            const lightIntensity = Math.sin(dayTime) * 0.5 + 0.5 + 0.5;
-            sun.intensity = lightIntensity;
-            ambientLight.intensity = lightIntensity * 0.6;
-
-            updateFluidOpacity();
-            updateChunks();
-
-            mobs.forEach(mob => {
-                mob.position.x += mob.userData.vx;
-                mob.position.z += mob.userData.vz;
-                const groundHeight = getGroundHeight(mob.position.x, mob.position.z);
-                mob.position.y = groundHeight + 1;
-                if (Math.random() < 0.01) {
-                    mob.userData.vx = (Math.random() - 0.5) * 0.05;
-                    mob.userData.vz = (Math.random() - 0.5) * 0.05;
+                if (now - lastUpdate > 500) {
+                    updateFluidOpacity();
+                    updateChunks();
+                    lastUpdate = now;
                 }
-            });
 
-            renderer.render(scene, camera);
-        }
+                // パーティクル更新
+                particles.forEach((particle, index) => {
+                    particle.userData.life -= delta;
+                    particle.position.y += particle.userData.vy * delta;
+                    if (particle.userData.life <= 0) {
+                        scene.remove(particle);
+                        particle.geometry.dispose();
+                        particle.material.dispose();
+                        particles.splice(index, 1);
+                    }
+                });
 
-        // 地面の高さ取得
-        function getGroundHeight(x, z) {
-            const worldX = Math.floor(x);
-            const worldZ = Math.floor(z);
-            let maxHeight = -Infinity;
-            for (let y = -15; y < 20; y++) {
-                if (blockMap.has(`${worldX},${y},${worldZ}`)) maxHeight = y;
+                mobs.forEach((mob, index) => {
+                    mob.position.x += mob.userData.vx;
+                    mob.position.z += mob.userData.vz;
+                    const groundHeight = getGroundHeight(mob.position.x, mob.position.z);
+                    mob.position.y = groundHeight + 1;
+                    if (Math.random() < 0.005) {
+                        mob.userData.vx = (Math.random() - 0.5) * 0.03;
+                        mob.userData.vz = (Math.random() - 0.5) * 0.03;
+                    }
+                    const distance = Math.sqrt(
+                        (mob.position.x - camera.position.x) ** 2 +
+                        (mob.position.z - camera.position.z) ** 2
+                    );
+                    if (gameMode === 'survival' && distance < 1.5) {
+                        health -= 0.5; // モブ接触ダメージ
+                        updateInventory();
+                    }
+                    if (mob.userData.health <= 0) {
+                        scene.remove(mob);
+                        mobs.splice(index, 1);
+                    }
+                });
+
+                if (health <= 0) {
+                    alert('ゲームオーバー！リロードして再挑戦してください。');
+                    location.reload();
+                }
+
+                renderer.render(scene, camera);
             }
-            return maxHeight === -Infinity ? -15 : maxHeight;
-        }
 
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }, { passive: true });
+            function getGroundHeight(x, z) {
+                const worldX = Math.floor(x);
+                const worldZ = Math.floor(z);
+                let maxHeight = -15;
+                for (let y = -15; y < 20; y++) {
+                    if (blockMap.has(`${worldX},${y},${worldZ}`)) maxHeight = y + 1;
+                }
+                return maxHeight;
+            }
 
-        updateInventory();
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }, { passive: true });
+
+            updateInventory();
+        });
     </script>
 </body>
 </html>
