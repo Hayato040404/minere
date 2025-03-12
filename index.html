@@ -2,54 +2,78 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Minecraft Refined (Bug Fixed & Enhanced)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Minecraft Refined (Smartphone Mode Added)</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #87CEEB; font-family: Arial; }
+        body { margin: 0; overflow: hidden; background: #87CEEB; font-family: Arial; touch-action: manipulation; }
         canvas { width: 100%; height: 100%; display: none; }
         #start-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.8); color: white; display: flex; flex-direction: column;
             justify-content: center; align-items: center; text-align: center;
         }
-        #start-screen h1 { font-size: 48px; margin-bottom: 20px; }
+        #start-screen h1 { font-size: 36px; margin-bottom: 10px; }
         #start-screen button, #start-screen select, #start-screen input {
-            font-size: 18px; padding: 10px; margin: 10px; width: 200px;
+            font-size: 16px; padding: 8px; margin: 5px; width: 180px;
             background: #555; color: white; border: none; cursor: pointer;
         }
         #start-screen button:hover { background: #777; }
-        #start-screen p { font-size: 14px; margin: 5px; }
+        #start-screen p { font-size: 12px; margin: 5px; }
         #loading {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            font-size: 24px; color: white; background: rgba(0,0,0,0.7); padding: 20px; display: none;
+            font-size: 20px; color: white; background: rgba(0,0,0,0.7); padding: 15px; display: none;
         }
         #inventory {
             position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
             background: rgba(0,0,0,0.5); padding: 5px; display: flex; align-items: center;
-            font-size: 16px; color: white; display: none;
+            font-size: 14px; color: white; display: none;
         }
         #inventory-detail {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.8); color: white; padding: 20px; display: none;
-            font-size: 16px; width: 300px; height: 300px; overflow-y: auto;
+            background: rgba(0,0,0,0.8); color: white; padding: 15px; display: none;
+            font-size: 14px; width: 250px; height: 250px; overflow-y: auto;
         }
         #mouse-lock-message {
             position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.7); color: white; padding: 10px; font-size: 16px; display: none;
+            background: rgba(0,0,0,0.7); color: white; padding: 8px; font-size: 14px; display: none;
         }
-        .heart { width: 20px; height: 20px; background: red; margin: 0 2px; border: 1px solid black; }
-        .slot { width: 30px; height: 30px; background: #8B4513; margin: 0 2px; text-align: center; line-height: 30px; border: 1px solid black; position: relative; }
-        .slot-count { position: absolute; bottom: 2px; right: 2px; font-size: 12px; }
+        .heart { width: 18px; height: 18px; background: red; margin: 0 2px; border: 1px solid black; }
+        .slot { width: 25px; height: 25px; background: #8B4513; margin: 0 2px; text-align: center; line-height: 25px; border: 1px solid black; position: relative; }
+        .slot-count { position: absolute; bottom: 2px; right: 2px; font-size: 10px; }
         #crosshair {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 20px; height: 20px; border: 2px solid white; border-radius: 50%; display: none;
+            width: 15px; height: 15px; border: 2px solid white; border-radius: 50%; display: none;
         }
-        #weather { position: absolute; top: 30px; left: 50%; transform: translateX(-50%); color: white; font-size: 16px; }
+        #weather { position: absolute; top: 30px; left: 50%; transform: translateX(-50%); color: white; font-size: 14px; }
+        #debug-info { display: none; } /* スマホモードではデバッグ非表示 */
+        #error-message {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(255, 0, 0, 0.8); color: white; padding: 15px; display: none;
+            font-size: 16px; text-align: center; z-index: 1000;
+        }
+        #touch-controls {
+            position: absolute; bottom: 10px; width: 100%; display: none;
+            justify-content: space-around; align-items: center;
+        }
+        .touch-button {
+            width: 60px; height: 60px; background: rgba(0,0,0,0.5); border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; color: white;
+            font-size: 20px; touch-action: manipulation;
+        }
+        #joystick { position: absolute; bottom: 80px; left: 20px; width: 100px; height: 100px; }
+        #joystick-base, #joystick-knob {
+            position: absolute; border-radius: 50%;
+        }
+        #joystick-base { width: 100px; height: 100px; background: rgba(0,0,0,0.3); }
+        #joystick-knob { width: 40px; height: 40px; background: rgba(255,255,255,0.7); top: 30px; left: 30px; }
     </style>
 </head>
 <body>
     <div id="start-screen">
         <h1>Minecraft Refined</h1>
         <select id="game-mode">
+            <option value="normal">通常モード</option>
+            <option value="smartphone">スマホモード</option>
             <option value="survival">サバイバルモード</option>
             <option value="creative">クリエイティブモード</option>
         </select>
@@ -71,7 +95,8 @@
         </select>
         <button onclick="startGame()">ゲーム開始</button>
         <p>操作説明:</p>
-        <p>WASD: 移動, スペース: ジャンプ, Shift: スプリント, E: インベントリ</p>
+        <p>PC: WASD: 移動, スペース: ジャンプ, Shift: スプリント, E: インベントリ</p>
+        <p>スマホ: ジョイスティック: 移動, ジャンプボタン, スプリントボタン, タッチ: 攻撃/配置</p>
         <p>左クリック: ブロック掘る, 右クリック: ブロック配置, F: 攻撃</p>
         <p>1-9: スロット選択, C: ピッケルクラフト, V: 剣クラフト</p>
     </div>
@@ -79,8 +104,18 @@
     <div id="inventory"></div>
     <div id="inventory-detail"></div>
     <div id="crosshair"></div>
-    <div id="mouse-lock-message">画面をクリックして視点移動を有効にしてください</div>
+    <div id="mouse-lock-message">画面をタッチして視点移動を有効にしてください</div>
     <div id="weather"></div>
+    <div id="debug-info"></div>
+    <div id="error-message"></div>
+    <div id="touch-controls">
+        <div id="joystick">
+            <div id="joystick-base"></div>
+            <div id="joystick-knob"></div>
+        </div>
+        <div class="touch-button" id="jump-button">↑</div>
+        <div class="touch-button" id="sprint-button">🚀</div>
+    </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134/examples/js/controls/PointerLockControls.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
@@ -88,677 +123,950 @@
     <audio id="hitSound" src="https://www.myinstants.com/media/sounds/minecraft-hit-1.mp3" preload="auto"></audio>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            let gameMode = 'survival';
+            let gameMode = 'normal';
             let renderDistance = 2;
             let mobSpawnRate = 0.001;
             let fpsLimit = 60;
             let worldSeed = '';
-            let health = 20; // 10ハート
+            let health = 20;
+            let isGameRunning = false;
+            let lastStepTime = 0;
+            let droppedItems = [];
+            let touchJoystick = { active: false, startX: 0, startY: 0, lastX: 0, lastY: 0 };
 
-            const canvas = document.createElement('canvas');
-            const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-            if (!gl) {
-                alert('WebGL 未サポート');
-                return;
-            }
-
-            window.startGame = function() {
-                gameMode = document.getElementById('game-mode').value;
-                renderDistance = parseInt(document.getElementById('render-distance').value);
-                mobSpawnRate = parseFloat(document.getElementById('mob-spawn-rate').value);
-                fpsLimit = parseInt(document.getElementById('fps-limit').value);
-                worldSeed = document.getElementById('world-seed').value || Math.random().toString();
-                document.getElementById('start-screen').style.display = 'none';
-                document.getElementById('loading').style.display = 'block';
-                document.getElementById('inventory').style.display = 'flex';
-                document.getElementById('crosshair').style.display = 'block';
-                document.querySelector('canvas').style.display = 'block';
-                document.getElementById('mouse-lock-message').style.display = 'block';
-                loadInitialChunks();
-            };
-
-            const scene = new THREE.Scene();
-            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            const renderer = new THREE.WebGLRenderer({ antialias: false });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.body.appendChild(renderer.domElement);
-
-            const controls = new THREE.PointerLockControls(camera, document.body);
-            scene.add(controls.getObject());
-
-            const mouseLockMessage = document.getElementById('mouse-lock-message');
-            document.addEventListener('click', () => {
-                if (!controls.isLocked) {
-                    controls.lock();
+            const errorMessageDiv = document.getElementById('error-message');
+            const debugInfoDiv = document.getElementById('debug-info');
+            function handleError(message) {
+                if (errorMessageDiv) {
+                    errorMessageDiv.textContent = `エラー: ${message}\nページをリロードして再試行してください。`;
+                    errorMessageDiv.style.display = 'block';
                 }
-            });
-            controls.addEventListener('lock', () => {
-                console.log('Pointer locked');
-                mouseLockMessage.style.display = 'none';
-            });
-            controls.addEventListener('unlock', () => {
-                console.log('Pointer unlocked');
-                mouseLockMessage.style.display = 'block';
-            });
-
-            const ambientLight = new THREE.AmbientLight(0x606060, 1.0);
-            scene.add(ambientLight);
-            const sun = new THREE.DirectionalLight(0xffffff, 0.8);
-            sun.position.set(50, 50, 50).normalize();
-            scene.add(sun);
-
-            const blockSize = 1;
-            const chunkSize = 16;
-            const noise = new SimplexNoise(worldSeed);
-            const chunks = new Map();
-            const blockMap = new Map();
-            const blockMaterials = new Map();
-            const chunkPool = [];
-            const particles = [];
-            const inventory = {
-                grass: 0, dirt: 0, stone: 0, wood: 0, leaves: 0,
-                sand: 0, ice: 0, jungleWood: 0, jungleLeaves: 0, water: 0,
-                lava: 0, ironOre: 0, goldOre: 0, pickaxe: 1, sword: 1
-            };
-            const inventoryDiv = document.getElementById('inventory');
-            const inventoryDetailDiv = document.getElementById('inventory-detail');
-            let selectedSlot = 0;
-            let time = 0;
-            let dayTime = 0;
-            let weather = 'clear';
-
-            function updateInventory() {
-                if (!inventoryDiv) return;
-                inventoryDiv.innerHTML = '';
-                if (gameMode === 'survival') {
-                    for (let i = 0; i < Math.floor(health / 2); i++) {
-                        const heart = document.createElement('div');
-                        heart.className = 'heart';
-                        inventoryDiv.appendChild(heart);
-                    }
-                }
-                const slots = [
-                    inventory.pickaxe > 0 ? 'pickaxe' : '', inventory.sword > 0 ? 'sword' : '',
-                    `grass:${inventory.grass}`, `dirt:${inventory.dirt}`, `stone:${inventory.stone}`,
-                    `sand:${inventory.sand}`, `ice:${inventory.ice}`, `wood:${inventory.wood}`, `leaves:${inventory.leaves}`, `water:${inventory.water}`
-                ];
-                slots.forEach((item, index) => {
-                    if (index >= slots.length - 1 && item === '') return;
-                    const slot = document.createElement('div');
-                    slot.className = 'slot';
-                    if (item) {
-                        const [type, count] = item.split(':');
-                        slot.textContent = type || '';
-                        if (count) {
-                            const countDiv = document.createElement('div');
-                            countDiv.className = 'slot-count';
-                            countDiv.textContent = count;
-                            slot.appendChild(countDiv);
-                        }
-                    }
-                    if (index === selectedSlot) slot.style.border = '3px solid yellow';
-                    inventoryDiv.appendChild(slot);
-                });
+                console.error(message);
+                isGameRunning = false;
             }
 
-            function showInventoryDetail() {
-                if (!inventoryDetailDiv) return;
-                inventoryDetailDiv.style.display = 'block';
-                inventoryDetailDiv.innerHTML = `
-                    <h3>インベントリ</h3>
-                    <p>体力: ${health}/20</p>
-                    <p>草: ${inventory.grass}</p>
-                    <p>土: ${inventory.dirt}</p>
-                    <p>石: ${inventory.stone}</p>
-                    <p>砂: ${inventory.sand}</p>
-                    <p>氷: ${inventory.ice}</p>
-                    <p>木: ${inventory.wood}</p>
-                    <p>葉: ${inventory.leaves}</p>
-                    <p>ジャングルの木: ${inventory.jungleWood}</p>
-                    <p>ジャングルの葉: ${inventory.jungleLeaves}</p>
-                    <p>水: ${inventory.water}</p>
-                    <p>溶岩: ${inventory.lava}</p>
-                    <p>鉄鉱石: ${inventory.ironOre}</p>
-                    <p>金鉱石: ${inventory.goldOre}</p>
-                    <p>ピッケル: ${inventory.pickaxe}</p>
-                    <p>剣: ${inventory.sword}</p>
-                    <button onclick="craft('pickaxe')">ピッケル (木x2)</button>
-                    <button onclick="craft('sword')">剣 (石x1, 木x1)</button>
-                `;
-            }
-
-            function craft(item) {
-                if (item === 'pickaxe' && inventory.wood >= 2) {
-                    inventory.wood -= 2;
-                    inventory.pickaxe++;
-                } else if (item === 'sword' && inventory.stone >= 1 && inventory.wood >= 1) {
-                    inventory.stone -= 1;
-                    inventory.wood -= 1;
-                    inventory.sword++;
-                } else {
-                    alert('素材が足りません！');
+            try {
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                if (!gl) {
+                    handleError('WebGL がサポートされていません。別のブラウザを試してください。');
                     return;
                 }
-                updateInventory();
-                inventoryDetailDiv.style.display = 'none';
-                alert(`${item} をクラフトしました！`);
-            }
 
-            function generateChunk(chunkX, chunkZ) {
-                const chunkKey = `${chunkX},${chunkZ}`;
-                let chunk = chunks.get(chunkKey);
-
-                if (chunk) return chunk;
-
-                let positions = [], colors = [];
-                let geometry;
-
-                if (chunkPool.length > 0) {
-                    const pooled = chunkPool.pop();
-                    geometry = pooled.geometry;
-                    positions = Array.from(geometry.getAttribute('position').array);
-                    colors = Array.from(geometry.getAttribute('color').array);
-                    scene.add(pooled);
-                    chunk = pooled;
-                } else {
-                    geometry = new THREE.BufferGeometry();
-                    const opaqueMaterial = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
-                    chunk = new THREE.Mesh(geometry, opaqueMaterial);
-                    scene.add(chunk);
-                }
-
-                for (let x = 0; x < chunkSize; x++) {
-                    for (let z = 0; z < chunkSize; z++) {
-                        const worldX = chunkX * chunkSize + x;
-                        const worldZ = chunkZ * chunkSize + z;
-                        const heightNoise = noise.noise2D(worldX * 0.05, worldZ * 0.05);
-                        const biomeNoise = noise.noise2D(worldX * 0.02, worldZ * 0.02);
-                        let height = Math.floor(heightNoise * 10 + 10);
-
-                        let biome = 'plain';
-                        if (biomeNoise > 0.3) { biome = 'desert'; height = Math.floor(heightNoise * 5 + 2); }
-                        else if (biomeNoise < -0.3) { biome = 'snow'; height = Math.floor(heightNoise * 8 + 8); }
-                        else if (biomeNoise > 0 && biomeNoise < 0.1) { biome = 'jungle'; height = Math.floor(heightNoise * 12 + 12); }
-                        else if (heightNoise < -0.2) { biome = 'ocean'; height = 0; }
-
-                        for (let y = -15; y <= height; y++) {
-                            let color, type;
-                            if (biome === 'desert') { color = 0xffff99; type = 'sand'; }
-                            else if (biome === 'snow') { color = (y === height) ? 0xE0FFFF : 0x808080; type = (y === height) ? 'ice' : 'stone'; }
-                            else if (biome === 'ocean') { color = 0x0000FF; type = 'water'; }
-                            else if (biome === 'jungle') { color = (y === height) ? 0x00ff00 : (y > height - 4) ? 0x8b4513 : 0x808080; type = (y === height) ? 'grass' : (y > height - 4) ? 'dirt' : 'stone'; }
-                            else { color = (y === height) ? 0x00ff00 : (y > height - 4) ? 0x8b4513 : 0x808080; type = (y === height) ? 'grass' : (y > height - 4) ? 'dirt' : 'stone'; }
-
-                            if (y < -5 && Math.random() < 0.005) { color = 0xC0C0C0; type = 'ironOre'; }
-                            else if (y < -8 && Math.random() < 0.0025) { color = 0xFFD700; type = 'goldOre'; }
-
-                            blockMap.set(`${worldX},${y},${worldZ}`, { color, type });
-                            addCube(positions, colors, worldX, y, worldZ, color);
+                window.startGame = function() {
+                    try {
+                        gameMode = document.getElementById('game-mode').value;
+                        renderDistance = (gameMode === 'smartphone') ? 1 : parseInt(document.getElementById('render-distance').value);
+                        mobSpawnRate = (gameMode === 'smartphone') ? 0.0005 : parseFloat(document.getElementById('mob-spawn-rate').value);
+                        fpsLimit = (gameMode === 'smartphone') ? 30 : parseInt(document.getElementById('fps-limit').value);
+                        worldSeed = document.getElementById('world-seed').value || Math.random().toString();
+                        document.getElementById('start-screen').style.display = 'none';
+                        document.getElementById('loading').style.display = 'block';
+                        document.getElementById('inventory').style.display = 'flex';
+                        document.getElementById('crosshair').style.display = 'block';
+                        document.querySelector('canvas').style.display = 'block';
+                        document.getElementById('mouse-lock-message').style.display = 'block';
+                        if (gameMode === 'smartphone') {
+                            document.getElementById('touch-controls').style.display = 'flex';
                         }
-
-                        if (Math.random() < 0.03 && height > 5 && biome !== 'ocean') {
-                            const trunkHeight = Math.floor(Math.random() * 3) + 3;
-                            for (let y = 0; y < trunkHeight; y++) {
-                                const woodColor = biome === 'jungle' ? 0x4A2F0A : 0x8b4513;
-                                const woodType = biome === 'jungle' ? 'jungleWood' : 'wood';
-                                blockMap.set(`${worldX},${height + y},${worldZ}`, { color: woodColor, type: woodType });
-                                addCube(positions, colors, worldX, height + y, worldZ, woodColor);
-                            }
-                            for (let lx = -2; lx <= 2; lx++) for (let lz = -2; lz <= 2; lz++) for (let ly = 0; ly < 2; ly++) {
-                                if (Math.abs(lx) === 2 && Math.abs(lz) === 2) continue;
-                                const leafColor = biome === 'jungle' ? 0x228B22 : 0x00cc00;
-                                const leafType = biome === 'jungle' ? 'jungleLeaves' : 'leaves';
-                                blockMap.set(`${worldX + lx},${height + trunkHeight + ly},${worldZ + lz}`, { color: leafColor, type: leafType });
-                                addCube(positions, colors, worldX + lx, height + trunkHeight + ly, worldZ + lz, leafColor);
-                            }
-                        }
+                        loadInitialChunks();
+                        isGameRunning = true;
+                    } catch (e) {
+                        handleError(`ゲーム開始中にエラー: ${e.message}`);
                     }
-                }
+                };
 
-                geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(positions), 3));
-                geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(colors), 3));
-                geometry.computeVertexNormals();
-                chunks.set(chunkKey, chunk);
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                const renderer = new THREE.WebGLRenderer({ antialias: false });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                document.body.appendChild(renderer.domElement);
 
-                updateFluidBlocks(chunk, chunkKey);
-                return chunk;
-            }
+                const controls = new THREE.PointerLockControls(camera, renderer.domElement);
+                scene.add(controls.getObject());
 
-            function addCube(positions, colors, x, y, z, color) {
-                const vertices = [[0,0,0], [1,0,0], [1,1,0], [0,1,0], [0,0,1], [1,0,1], [1,1,1], [0,1,1]];
-                const faces = [[0,1,2],[0,2,3],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[2,3,7],[2,7,6],[0,3,7],[0,7,4],[1,2,6],[1,6,5]];
-                const r = (color >> 16 & 255) / 255;
-                const g = (color >> 8 & 255) / 255;
-                const b = (color & 255) / 255;
+                const mouseLockMessage = document.getElementById('mouse-lock-message');
+                document.addEventListener('click', () => {
+                    if (!controls.isLocked && isGameRunning) {
+                        controls.lock();
+                    }
+                }, { passive: true });
+                controls.addEventListener('lock', () => {
+                    console.log('Pointer locked');
+                    mouseLockMessage.style.display = 'none';
+                });
+                controls.addEventListener('unlock', () => {
+                    console.log('Pointer unlocked');
+                    mouseLockMessage.style.display = 'block';
+                });
 
-                faces.forEach(face => face.forEach(vertexIdx => {
-                    const v = vertices[vertexIdx];
-                    positions.push(x + v[0], y + v[1], z + v[2]);
-                    colors.push(r, g, b);
-                }));
-            }
+                const ambientLight = new THREE.AmbientLight(0x606060, 1.0);
+                scene.add(ambientLight);
+                const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+                sun.position.set(50, 50, 50).normalize();
+                scene.add(sun);
 
-            function createParticle(x, y, z, color) {
-                const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
-                const material = new THREE.MeshBasicMaterial({ color });
-                const particle = new THREE.Mesh(geometry, material);
-                particle.position.set(x + Math.random() * 0.5 - 0.25, y + Math.random() * 0.5 - 0.25, z + Math.random() * 0.5 - 0.25);
-                particle.userData = { life: 1.0, vy: Math.random() * 0.5 };
-                scene.add(particle);
-                particles.push(particle);
-            }
+                const blockSize = 1;
+                const chunkSize = 16;
+                const noise = new SimplexNoise(worldSeed);
+                const chunks = new Map();
+                const blockMap = new Map();
+                const blockMaterials = new Map();
+                const chunkPool = [];
+                const particles = [];
+                const inventory = {
+                    grass: 0, dirt: 0, stone: 0, wood: 0, leaves: 0,
+                    sand: 0, ice: 0, jungleWood: 0, jungleLeaves: 0, water: 0,
+                    lava: 0, ironOre: 0, goldOre: 0, pickaxe: 1, sword: 1
+                };
+                const inventoryDiv = document.getElementById('inventory');
+                const inventoryDetailDiv = document.getElementById('inventory-detail');
+                let selectedSlot = 0;
+                let time = 0;
+                let dayTime = 0;
+                let weather = 'clear';
+                let showDebug = false;
 
-            function updateFluidBlocks(chunk, chunkKey) {
-                if (blockMaterials.has(chunkKey)) return;
-
-                const fluidGeometry = new THREE.BufferGeometry();
-                const fluidPositions = [];
-                const fluidColors = [];
-
-                for (let [key, block] of blockMap) {
-                    const [x, y, z] = key.split(',').map(Number);
-                    const chunkCoordX = Math.floor(x / chunkSize);
-                    const chunkCoordZ = Math.floor(z / chunkSize);
-                    if (chunkCoordX === parseInt(chunkKey.split(',')[0]) && chunkCoordZ === parseInt(chunkKey.split(',')[1])) {
-                        if (block.type === 'water' || block.type === 'lava') {
-                            addCube(fluidPositions, fluidColors, x, y, z, block.color);
+                function updateInventory() {
+                    if (!inventoryDiv) return;
+                    inventoryDiv.innerHTML = '';
+                    if (gameMode === 'survival') {
+                        for (let i = 0; i < Math.floor(health / 2); i++) {
+                            const heart = document.createElement('div');
+                            heart.className = 'heart';
+                            inventoryDiv.appendChild(heart);
                         }
                     }
-                }
-
-                if (fluidPositions.length === 0) return;
-
-                fluidGeometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(fluidPositions), 3));
-                fluidGeometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(fluidColors), 3));
-                fluidGeometry.computeVertexNormals();
-                const fluidMaterial = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
-                const fluidMesh = new THREE.Mesh(fluidGeometry, fluidMaterial);
-                scene.add(fluidMesh);
-                blockMaterials.set(chunkKey, { fluid: fluidMaterial, fluidMesh });
-            }
-
-            function updateFluidOpacity() {
-                if (time % 1000 < 16) {
-                    for (let [key, materials] of blockMaterials) {
-                        materials.fluid.opacity = 0.6;
-                        materials.fluid.needsUpdate = true;
-                    }
-                }
-            }
-
-            const mobs = [];
-            function spawnMob(type, x, y, z) {
-                if (mobs.length > 20) return;
-                const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-                let color, height, health;
-                switch (type) {
-                    case 'cow': color = 0x000000; height = 0.75; health = 10; break;
-                    case 'sheep': color = 0xFFFFFF; height = 0.6; health = 8; break;
-                    case 'chicken': color = 0xFFA500; height = 0.4; health = 4; break;
-                    case 'zombie': color = 0x00FF00; height = 0.75; health = 20; break;
-                }
-                const material = new THREE.MeshBasicMaterial({ color });
-                const mob = new THREE.Mesh(geometry, material);
-                mob.scale.set(1, height, 1);
-                mob.position.set(x, y + 1, z);
-                mob.userData = { type, health, vx: (Math.random() - 0.5) * 0.03, vz: (Math.random() - 0.5) * 0.03 };
-                scene.add(mob);
-                mobs.push(mob);
-            }
-
-            function updateChunks() {
-                const playerChunkX = Math.floor(camera.position.x / chunkSize);
-                const playerChunkZ = Math.floor(camera.position.z / chunkSize);
-
-                for (let cx = playerChunkX - renderDistance; cx <= playerChunkX + renderDistance; cx++) {
-                    for (let cz = playerChunkZ - renderDistance; cz <= playerChunkZ + renderDistance; cz++) {
-                        const chunkKey = `${cx},${cz}`;
-                        if (!chunks.has(chunkKey)) {
-                            generateChunk(cx, cz);
-                            if (Math.random() < mobSpawnRate / 2) {
-                                const mobType = Math.random() < 0.7 ? (Math.random() < 0.33 ? 'cow' : Math.random() < 0.66 ? 'sheep' : 'chicken') : 'zombie';
-                                spawnMob(mobType, cx * chunkSize + Math.random() * chunkSize, 0, cz * chunkSize + Math.random() * chunkSize);
+                    const slots = [
+                        inventory.pickaxe > 0 ? 'pickaxe' : '', inventory.sword > 0 ? 'sword' : '',
+                        `grass:${inventory.grass}`, `dirt:${inventory.dirt}`, `stone:${inventory.stone}`,
+                        `sand:${inventory.sand}`, `ice:${inventory.ice}`, `wood:${inventory.wood}`, `leaves:${inventory.leaves}`, `water:${inventory.water}`
+                    ];
+                    slots.forEach((item, index) => {
+                        if (index >= slots.length - 1 && item === '') return;
+                        const slot = document.createElement('div');
+                        slot.className = 'slot';
+                        if (item) {
+                            const [type, count] = item.split(':');
+                            slot.textContent = type || '';
+                            if (count) {
+                                const countDiv = document.createElement('div');
+                                countDiv.className = 'slot-count';
+                                countDiv.textContent = count;
+                                slot.appendChild(countDiv);
                             }
                         }
+                        if (index === selectedSlot) slot.style.border = '3px solid yellow';
+                        inventoryDiv.appendChild(slot);
+                    });
+                }
+
+                function showInventoryDetail() {
+                    if (!inventoryDetailDiv) return;
+                    inventoryDetailDiv.style.display = 'block';
+                    inventoryDetailDiv.innerHTML = `
+                        <h3>インベントリ</h3>
+                        <p>体力: ${health}/20</p>
+                        <p>草: ${inventory.grass}</p>
+                        <p>土: ${inventory.dirt}</p>
+                        <p>石: ${inventory.stone}</p>
+                        <p>砂: ${inventory.sand}</p>
+                        <p>氷: ${inventory.ice}</p>
+                        <p>木: ${inventory.wood}</p>
+                        <p>葉: ${inventory.leaves}</p>
+                        <p>ジャングルの木: ${inventory.jungleWood}</p>
+                        <p>ジャングルの葉: ${inventory.jungleLeaves}</p>
+                        <p>水: ${inventory.water}</p>
+                        <p>溶岩: ${inventory.lava}</p>
+                        <p>鉄鉱石: ${inventory.ironOre}</p>
+                        <p>金鉱石: ${inventory.goldOre}</p>
+                        <p>ピッケル: ${inventory.pickaxe}</p>
+                        <p>剣: ${inventory.sword}</p>
+                        <button onclick="craft('pickaxe')">ピッケル (木x2)</button>
+                        <button onclick="craft('sword')">剣 (石x1, 木x1)</button>
+                    `;
+                }
+
+                function craft(item) {
+                    try {
+                        if (item === 'pickaxe' && inventory.wood >= 2) {
+                            inventory.wood -= 2;
+                            inventory.pickaxe++;
+                        } else if (item === 'sword' && inventory.stone >= 1 && inventory.wood >= 1) {
+                            inventory.stone -= 1;
+                            inventory.wood -= 1;
+                            inventory.sword++;
+                        } else {
+                            throw new Error('素材が足りません！');
+                        }
+                        updateInventory();
+                        inventoryDetailDiv.style.display = 'none';
+                        alert(`${item} をクラフトしました！`);
+                    } catch (e) {
+                        handleError(`クラフトエラー: ${e.message}`);
                     }
                 }
 
-                for (let [key, chunk] of chunks) {
-                    const [cx, cz] = key.split(',').map(Number);
-                    if (Math.abs(cx - playerChunkX) > renderDistance + 1 || Math.abs(cz - playerChunkZ) > renderDistance + 1) {
-                        const materials = blockMaterials.get(key);
-                        if (materials) {
-                            scene.remove(materials.fluidMesh);
-                            materials.fluidMesh.geometry.dispose();
-                            materials.fluid.dispose();
-                            blockMaterials.delete(key);
+                function generateChunk(chunkX, chunkZ) {
+                    const chunkKey = `${chunkX},${chunkZ}`;
+                    let chunk = chunks.get(chunkKey);
+
+                    if (chunk) return chunk;
+
+                    let positions = [], colors = [];
+                    let geometry;
+
+                    if (chunkPool.length > 0) {
+                        const pooled = chunkPool.pop();
+                        geometry = pooled.geometry;
+                        positions = Array.from(geometry.getAttribute('position').array);
+                        colors = Array.from(geometry.getAttribute('color').array);
+                        scene.add(pooled);
+                        chunk = pooled;
+                    } else {
+                        geometry = new THREE.BufferGeometry();
+                        const opaqueMaterial = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+                        chunk = new THREE.Mesh(geometry, opaqueMaterial);
+                        scene.add(chunk);
+                    }
+
+                    for (let x = 0; x < chunkSize; x++) {
+                        for (let z = 0; z < chunkSize; z++) {
+                            const worldX = chunkX * chunkSize + x;
+                            const worldZ = chunkZ * chunkSize + z;
+                            const heightNoise = noise.noise2D(worldX * 0.05, worldZ * 0.05);
+                            const biomeNoise = noise.noise2D(worldX * 0.02, worldZ * 0.02);
+                            let height = Math.floor(heightNoise * 10 + 10);
+
+                            let biome = 'plain';
+                            if (biomeNoise > 0.3) biome = 'desert';
+                            else if (biomeNoise < -0.3) biome = 'snow';
+                            else if (biomeNoise > 0 && biomeNoise < 0.1) biome = 'jungle';
+                            else if (heightNoise < -0.2) biome = 'ocean';
+
+                            for (let y = -15; y <= height; y++) {
+                                let color, type;
+                                if (biome === 'desert') { color = 0xffff99; type = 'sand'; }
+                                else if (biome === 'snow') { color = (y === height) ? 0xE0FFFF : 0x808080; type = (y === height) ? 'ice' : 'stone'; }
+                                else if (biome === 'ocean') { color = 0x0000FF; type = 'water'; }
+                                else if (biome === 'jungle') { color = (y === height) ? 0x00ff00 : (y > height - 4) ? 0x8b4513 : 0x808080; type = (y === height) ? 'grass' : (y > height - 4) ? 'dirt' : 'stone'; }
+                                else { color = (y === height) ? 0x00ff00 : (y > height - 4) ? 0x8b4513 : 0x808080; type = (y === height) ? 'grass' : (y > height - 4) ? 'dirt' : 'stone'; }
+
+                                if (y < -5 && Math.random() < 0.005) { color = 0xC0C0C0; type = 'ironOre'; }
+                                else if (y < -8 && Math.random() < 0.0025) { color = 0xFFD700; type = 'goldOre'; }
+
+                                blockMap.set(`${worldX},${y},${worldZ}`, { color, type });
+                                addCube(positions, colors, worldX, y, worldZ, color);
+                            }
+
+                            if (gameMode !== 'smartphone' && Math.random() < 0.03 && height > 5 && biome !== 'ocean') {
+                                const trunkHeight = Math.floor(Math.random() * 3) + 3;
+                                for (let y = 0; y < trunkHeight; y++) {
+                                    const woodColor = biome === 'jungle' ? 0x4A2F0A : 0x8b4513;
+                                    const woodType = biome === 'jungle' ? 'jungleWood' : 'wood';
+                                    blockMap.set(`${worldX},${height + y},${worldZ}`, { color: woodColor, type: woodType });
+                                    addCube(positions, colors, worldX, height + y, worldZ, woodColor);
+                                }
+                                for (let lx = -2; lx <= 2; lx++) for (let lz = -2; lz <= 2; lz++) for (let ly = 0; ly < 2; ly++) {
+                                    if (Math.abs(lx) === 2 && Math.abs(lz) === 2) continue;
+                                    const leafColor = biome === 'jungle' ? 0x228B22 : 0x00cc00;
+                                    const leafType = biome === 'jungle' ? 'jungleLeaves' : 'leaves';
+                                    blockMap.set(`${worldX + lx},${height + trunkHeight + ly},${worldZ + lz}`, { color: leafColor, type: leafType });
+                                    addCube(positions, colors, worldX + lx, height + trunkHeight + ly, worldZ + lz, leafColor);
+                                }
+                            }
                         }
-                        scene.remove(chunk);
-                        chunk.geometry.dispose();
-                        chunk.material.dispose();
-                        chunks.delete(key);
-                        chunkPool.push(chunk);
-                        for (let [blockKey] of blockMap) {
-                            const [bx, , bz] = blockKey.split(',').map(Number);
-                            if (Math.floor(bx / chunkSize) === cx && Math.floor(bz / chunkSize) === cz) {
-                                blockMap.delete(blockKey);
+                    }
+
+                    geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(positions), 3));
+                    geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(colors), 3));
+                    geometry.computeVertexNormals();
+                    chunks.set(chunkKey, chunk);
+
+                    updateFluidBlocks(chunk, chunkKey);
+                    return chunk;
+                }
+
+                function addCube(positions, colors, x, y, z, color) {
+                    const vertices = [[0,0,0], [1,0,0], [1,1,0], [0,1,0], [0,0,1], [1,0,1], [1,1,1], [0,1,1]];
+                    const faces = [[0,1,2],[0,2,3],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[2,3,7],[2,7,6],[0,3,7],[0,7,4],[1,2,6],[1,6,5]];
+                    const r = (color >> 16 & 255) / 255;
+                    const g = (color >> 8 & 255) / 255;
+                    const b = (color & 255) / 255;
+
+                    faces.forEach(face => face.forEach(vertexIdx => {
+                        const v = vertices[vertexIdx];
+                        positions.push(x + v[0], y + v[1], z + v[2]);
+                        colors.push(r, g, b);
+                    }));
+                }
+
+                function createParticle(x, y, z, color) {
+                    if (gameMode === 'smartphone') return; // スマホモードではパーティクルを無効
+                    const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+                    const material = new THREE.MeshBasicMaterial({ color });
+                    const particle = new THREE.Mesh(geometry, material);
+                    particle.position.set(x + Math.random() * 0.5 - 0.25, y + Math.random() * 0.5 - 0.25, z + Math.random() * 0.5 - 0.25);
+                    particle.userData = { life: 1.0, vy: Math.random() * 0.5 };
+                    scene.add(particle);
+                    particles.push(particle);
+                }
+
+                function dropItem(x, y, z, type) {
+                    if (gameMode === 'smartphone') return; // スマホモードではドロップを無効
+                    const geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+                    let color;
+                    switch (type) {
+                        case 'grass': color = 0x00ff00; break;
+                        case 'dirt': color = 0x8b4513; break;
+                        case 'stone': color = 0x808080; break;
+                        case 'sand': color = 0xffff99; break;
+                        case 'ice': color = 0xE0FFFF; break;
+                        case 'wood': color = 0x8b4513; break;
+                        case 'leaves': color = 0x00cc00; break;
+                        case 'water': color = 0x0000FF; break;
+                        case 'ironOre': color = 0xC0C0C0; break;
+                        case 'goldOre': color = 0xFFD700; break;
+                        default: return;
+                    }
+                    const material = new THREE.MeshBasicMaterial({ color });
+                    const item = new THREE.Mesh(geometry, material);
+                    item.position.set(x, y + 0.5, z);
+                    item.userData = { type, life: 10.0, vy: 0 };
+                    scene.add(item);
+                    droppedItems.push(item);
+                }
+
+                function updateFluidBlocks(chunk, chunkKey) {
+                    if (blockMaterials.has(chunkKey)) return;
+
+                    const fluidGeometry = new THREE.BufferGeometry();
+                    const fluidPositions = [];
+                    const fluidColors = [];
+
+                    for (let [key, block] of blockMap) {
+                        const [x, y, z] = key.split(',').map(Number);
+                        const chunkCoordX = Math.floor(x / chunkSize);
+                        const chunkCoordZ = Math.floor(z / chunkSize);
+                        if (chunkCoordX === parseInt(chunkKey.split(',')[0]) && chunkCoordZ === parseInt(chunkKey.split(',')[1])) {
+                            if (block.type === 'water' || block.type === 'lava') {
+                                addCube(fluidPositions, fluidColors, x, y, z, block.color);
+                            }
+                        }
+                    }
+
+                    if (fluidPositions.length === 0) return;
+
+                    fluidGeometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(fluidPositions), 3));
+                    fluidGeometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(fluidColors), 3));
+                    fluidGeometry.computeVertexNormals();
+                    const fluidMaterial = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+                    const fluidMesh = new THREE.Mesh(fluidGeometry, fluidMaterial);
+                    scene.add(fluidMesh);
+                    blockMaterials.set(chunkKey, { fluid: fluidMaterial, fluidMesh });
+                }
+
+                function updateFluidOpacity() {
+                    if (gameMode === 'smartphone') return; // スマホモードでは流体の更新を無効
+                    if (time % 1000 < 16) {
+                        for (let [key, materials] of blockMaterials) {
+                            materials.fluid.opacity = 0.6;
+                            materials.fluid.needsUpdate = true;
+                        }
+                    }
+                }
+
+                const mobs = [];
+                function spawnMob(type, x, y, z) {
+                    if (mobs.length > 10 || gameMode === 'smartphone') return; // スマホモードではモブ数を制限
+                    const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+                    let color, height, health;
+                    switch (type) {
+                        case 'cow': color = 0x000000; height = 0.75; health = 10; break;
+                        case 'sheep': color = 0xFFFFFF; height = 0.6; health = 8; break;
+                        case 'chicken': color = 0xFFA500; height = 0.4; health = 4; break;
+                        case 'zombie': color = 0x00FF00; height = 0.75; health = 20; break;
+                    }
+                    const material = new THREE.MeshBasicMaterial({ color });
+                    const mob = new THREE.Mesh(geometry, material);
+                    mob.scale.set(1, height, 1);
+                    mob.position.set(x, y + 1, z);
+                    mob.userData = { type, health, vx: (Math.random() - 0.5) * 0.03, vz: (Math.random() - 0.5) * 0.03 };
+                    scene.add(mob);
+                    mobs.push(mob);
+                }
+
+                function updateChunks() {
+                    const playerChunkX = Math.floor(controls.getObject().position.x / chunkSize);
+                    const playerChunkZ = Math.floor(controls.getObject().position.z / chunkSize);
+
+                    for (let cx = playerChunkX - renderDistance; cx <= playerChunkX + renderDistance; cx++) {
+                        for (let cz = playerChunkZ - renderDistance; cz <= playerChunkZ + renderDistance; cz++) {
+                            const chunkKey = `${cx},${cz}`;
+                            if (!chunks.has(chunkKey)) {
+                                generateChunk(cx, cz);
+                                if (Math.random() < mobSpawnRate / 2) {
+                                    const mobType = Math.random() < 0.7 ? (Math.random() < 0.33 ? 'cow' : Math.random() < 0.66 ? 'sheep' : 'chicken') : 'zombie';
+                                    spawnMob(mobType, cx * chunkSize + Math.random() * chunkSize, 0, cz * chunkSize + Math.random() * chunkSize);
+                                }
+                            }
+                        }
+                    }
+
+                    for (let [key, chunk] of chunks) {
+                        const [cx, cz] = key.split(',').map(Number);
+                        if (Math.abs(cx - playerChunkX) > renderDistance + 1 || Math.abs(cz - playerChunkZ) > renderDistance + 1) {
+                            const materials = blockMaterials.get(key);
+                            if (materials) {
+                                scene.remove(materials.fluidMesh);
+                                materials.fluidMesh.geometry.dispose();
+                                materials.fluid.dispose();
+                                blockMaterials.delete(key);
+                            }
+                            scene.remove(chunk);
+                            chunk.geometry.dispose();
+                            chunk.material.dispose();
+                            chunks.delete(key);
+                            chunkPool.push(chunk);
+                            for (let [blockKey] of blockMap) {
+                                const [bx, , bz] = blockKey.split(',').map(Number);
+                                if (Math.floor(bx / chunkSize) === cx && Math.floor(bz / chunkSize) === cz) {
+                                    blockMap.delete(blockKey);
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            let loadedChunks = 0;
-            const totalChunks = (2 * renderDistance + 1) * (2 * renderDistance + 1);
-            const loadingDiv = document.getElementById('loading');
-            const progressSpan = document.getElementById('progress');
+                let loadedChunks = 0;
+                const totalChunks = (2 * renderDistance + 1) * (2 * renderDistance + 1);
+                const loadingDiv = document.getElementById('loading');
+                const progressSpan = document.getElementById('progress');
 
-            function loadInitialChunks() {
-                const playerChunkX = 0;
-                const playerChunkZ = 0;
-                for (let cx = playerChunkX - renderDistance; cx <= playerChunkX + renderDistance; cx++) {
-                    for (let cz = playerChunkZ - renderDistance; cz <= playerChunkZ + renderDistance; cz++) {
-                        generateChunk(cx, cz);
-                        loadedChunks++;
-                        progressSpan.textContent = `${Math.floor((loadedChunks / totalChunks) * 100)}%`;
-                        if (loadedChunks === totalChunks) {
-                            setTimeout(() => { loadingDiv.style.display = 'none'; animate(); }, 500);
+                function loadInitialChunks() {
+                    try {
+                        const playerChunkX = 0;
+                        const playerChunkZ = 0;
+                        for (let cx = playerChunkX - renderDistance; cx <= playerChunkX + renderDistance; cx++) {
+                            for (let cz = playerChunkZ - renderDistance; cz <= playerChunkZ + renderDistance; cz++) {
+                                generateChunk(cx, cz);
+                                loadedChunks++;
+                                progressSpan.textContent = `${Math.floor((loadedChunks / totalChunks) * 100)}%`;
+                                if (loadedChunks === totalChunks) {
+                                    setTimeout(() => { loadingDiv.style.display = 'none'; animate(); }, 500);
+                                }
+                            }
                         }
+                    } catch (e) {
+                        handleError(`チャンク生成エラー: ${e.message}`);
                     }
                 }
-            }
 
-            const velocity = new THREE.Vector3();
-            let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false, canJump = false, isSprinting = false;
-            const baseSpeed = 4.3; // Minecraft の歩行速度（4.3ブロック/秒）
-            const sprintSpeed = baseSpeed * 1.3; // スプリントは1.3倍
-            const gravity = gameMode === 'creative' ? 0 : -9.8;
-            const jumpVelocity = 4.5;
+                const velocity = new THREE.Vector3();
+                let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false, canJump = false, isSprinting = false;
 
-            document.addEventListener('keydown', (event) => {
-                switch (event.key.toLowerCase()) {
-                    case 'w': moveForward = true; break;
-                    case 's': moveBackward = true; break;
-                    case 'a': moveLeft = true; break;
-                    case 'd': moveRight = true; break;
-                    case ' ': if (canJump || gameMode === 'creative') { velocity.y = jumpVelocity; canJump = false; } break;
-                    case 'shift': isSprinting = true; break;
-                    case 'e': showInventoryDetail(); break;
-                    case 'f': attack(); break;
-                    case '1': case '2': case '3': case '4': case '5':
-                    case '6': case '7': case '8': case '9': selectedSlot = parseInt(event.key) - 1; updateInventory(); break;
-                }
-            });
+                const baseSpeed = 4.3;
+                const sprintSpeed = baseSpeed * 1.3;
+                const gravity = gameMode === 'creative' ? 0 : -9.8;
+                const jumpVelocity = 4.5;
 
-            document.addEventListener('keyup', (event) => {
-                switch (event.key.toLowerCase()) {
-                    case 'w': moveForward = false; break;
-                    case 's': moveBackward = false; break;
-                    case 'a': moveLeft = false; break;
-                    case 'd': moveRight = false; break;
-                    case 'shift': isSprinting = false; break;
-                    case 'e': inventoryDetailDiv.style.display = 'none'; break;
-                }
-            });
+                document.addEventListener('keydown', (event) => {
+                    if (!isGameRunning || gameMode === 'smartphone') return;
+                    switch (event.key.toLowerCase()) {
+                        case 'w': moveForward = true; console.log('W pressed'); break;
+                        case 's': moveBackward = true; console.log('S pressed'); break;
+                        case 'a': moveLeft = true; console.log('A pressed'); break;
+                        case 'd': moveRight = true; console.log('D pressed'); break;
+                        case ' ': if (canJump || gameMode === 'creative') { velocity.y = jumpVelocity; canJump = false; } break;
+                        case 'shift': isSprinting = true; console.log('Sprinting'); break;
+                        case 'e': showInventoryDetail(); break;
+                        case 'f': attack(); break;
+                        case '1': case '2': case '3': case '4': case '5':
+                        case '6': case '7': case '8': case '9': selectedSlot = parseInt(event.key) - 1; updateInventory(); break;
+                        case 'f3': showDebug = !showDebug; debugInfoDiv.style.display = showDebug ? 'block' : 'none'; break;
+                    }
+                });
 
-            const breakSound = document.getElementById('breakSound');
-            const hitSound = document.getElementById('hitSound');
-            document.addEventListener('mousedown', (event) => {
-                event.preventDefault();
-                if (event.button === 0) { // 左クリック
-                    if (gameMode === 'creative' || inventory.pickaxe > 0) {
+                document.addEventListener('keyup', (event) => {
+                    if (!isGameRunning || gameMode === 'smartphone') return;
+                    switch (event.key.toLowerCase()) {
+                        case 'w': moveForward = false; console.log('W released'); break;
+                        case 's': moveBackward = false; console.log('S released'); break;
+                        case 'a': moveLeft = false; console.log('A released'); break;
+                        case 'd': moveRight = false; console.log('D released'); break;
+                        case 'shift': isSprinting = false; console.log('Sprinting off'); break;
+                        case 'e': inventoryDetailDiv.style.display = 'none'; break;
+                    }
+                });
+
+                const breakSound = document.getElementById('breakSound');
+                const hitSound = document.getElementById('hitSound');
+                document.addEventListener('mousedown', (event) => {
+                    if (!isGameRunning) return;
+                    event.preventDefault();
+                    try {
+                        if (event.button === 0) { // 左クリック
+                            if (gameMode === 'creative' || inventory.pickaxe > 0) {
+                                const raycaster = new THREE.Raycaster();
+                                raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+                                const intersects = raycaster.intersectObjects([...Array.from(chunks.values()), ...mobs], true);
+
+                                if (intersects.length > 0) {
+                                    const intersect = intersects[0];
+                                    if (intersect.object.userData?.type) {
+                                        console.log(`Hit ${intersect.object.userData.type}!`);
+                                        return;
+                                    }
+                                    const pos = intersect.point.clone().sub(intersect.face.normal.multiplyScalar(0.5));
+                                    const blockX = Math.floor(pos.x);
+                                    const blockY = Math.floor(pos.y);
+                                    const blockZ = Math.floor(pos.z);
+
+                                    const blockKey = `${blockX},${blockY},${blockZ}`;
+                                    if (blockMap.has(blockKey)) {
+                                        const block = blockMap.get(blockKey);
+                                        if (gameMode === 'survival') {
+                                            dropItem(blockX, blockY, blockZ, block.type);
+                                        } else {
+                                            inventory[block.type]++;
+                                        }
+                                        updateInventory();
+                                        breakSound.currentTime = 0;
+                                        breakSound.play();
+
+                                        if (gameMode !== 'smartphone') {
+                                            for (let i = 0; i < 5; i++) createParticle(blockX, blockY, blockZ, block.color);
+                                        }
+
+                                        blockMap.delete(blockKey);
+                                        const chunkX = Math.floor(blockX / chunkSize);
+                                        const chunkZ = Math.floor(blockZ / chunkSize);
+                                        const chunkKey = `${chunkX},${chunkZ}`;
+                                        const chunk = chunks.get(chunkKey);
+                                        if (chunk) {
+                                            scene.remove(chunk);
+                                            const fluidMaterials = blockMaterials.get(chunkKey);
+                                            if (fluidMaterials) {
+                                                scene.remove(fluidMaterials.fluidMesh);
+                                                blockMaterials.delete(chunkKey);
+                                            }
+                                            chunks.delete(chunkKey);
+                                            generateChunk(chunkX, chunkZ);
+                                        }
+                                    }
+                                }
+                            }
+                        } else if (event.button === 2) { // 右クリック
+                            const raycaster = new THREE.Raycaster();
+                            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+                            const intersects = raycaster.intersectObjects([...Array.from(chunks.values())], true);
+
+                            if (intersects.length > 0) {
+                                const intersect = intersects[0];
+                                const pos = intersect.point.clone().add(intersect.face.normal.multiplyScalar(0.5));
+                                const blockX = Math.floor(pos.x);
+                                const blockY = Math.floor(pos.y);
+                                const blockZ = Math.floor(pos.z);
+
+                                const blockKey = `${blockX},${blockY},${blockZ}`;
+                                if (!blockMap.has(blockKey)) {
+                                    const selectedItem = [
+                                        '', '', 'grass', 'dirt', 'stone',
+                                        'sand', 'ice', 'wood', 'leaves', 'water'
+                                    ][selectedSlot];
+                                    if (selectedItem && gameMode !== 'creative' && inventory[selectedItem] <= 0) {
+                                        alert('ブロックがありません！');
+                                        return;
+                                    }
+                                    if (selectedItem) {
+                                        if (gameMode === 'survival') inventory[selectedItem]--;
+                                        let color;
+                                        switch (selectedItem) {
+                                            case 'grass': color = 0x00ff00; break;
+                                            case 'dirt': color = 0x8b4513; break;
+                                            case 'stone': color = 0x808080; break;
+                                            case 'sand': color = 0xffff99; break;
+                                            case 'ice': color = 0xE0FFFF; break;
+                                            case 'wood': color = 0x8b4513; break;
+                                            case 'leaves': color = 0x00cc00; break;
+                                            case 'water': color = 0x0000FF; break;
+                                            default: return;
+                                        }
+                                        blockMap.set(blockKey, { color, type: selectedItem });
+                                        updateInventory();
+
+                                        const chunkX = Math.floor(blockX / chunkSize);
+                                        const chunkZ = Math.floor(blockZ / chunkSize);
+                                        const chunkKey = `${chunkX},${chunkZ}`;
+                                        const chunk = chunks.get(chunkKey);
+                                        if (chunk) {
+                                            scene.remove(chunk);
+                                            const fluidMaterials = blockMaterials.get(chunkKey);
+                                            if (fluidMaterials) {
+                                                scene.remove(fluidMaterials.fluidMesh);
+                                                blockMaterials.delete(chunkKey);
+                                            }
+                                            chunks.delete(chunkKey);
+                                            generateChunk(chunkX, chunkZ);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        handleError(`マウス操作エラー: ${e.message}`);
+                    }
+                }, { passive: false });
+
+                function attack() {
+                    if (!isGameRunning || inventory.sword <= 0) return;
+                    try {
                         const raycaster = new THREE.Raycaster();
                         raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-                        const intersects = raycaster.intersectObjects([...Array.from(chunks.values()), ...mobs], true);
+                        const intersects = raycaster.intersectObjects(mobs, true);
+
+                        if (intersects.length > 0) {
+                            const mob = intersects[0].object;
+                            mob.userData.health -= 4;
+                            if (gameMode !== 'smartphone') {
+                                const hitSound = document.getElementById('hitSound');
+                                hitSound.currentTime = 0;
+                                hitSound.play();
+                            }
+                            if (mob.userData.health <= 0) {
+                                scene.remove(mob);
+                                mobs.splice(mobs.indexOf(mob), 1);
+                            }
+                        }
+                    } catch (e) {
+                        handleError(`攻撃エラー: ${e.message}`);
+                    }
+                }
+
+                // タッチ操作
+                const joystickBase = document.getElementById('joystick-base');
+                const joystickKnob = document.getElementById('joystick-knob');
+                const jumpButton = document.getElementById('jump-button');
+                const sprintButton = document.getElementById('sprint-button');
+
+                joystickBase.addEventListener('touchstart', (event) => {
+                    if (!isGameRunning || gameMode !== 'smartphone') return;
+                    touchJoystick.active = true;
+                    const touch = event.touches[0];
+                    touchJoystick.startX = touch.clientX;
+                    touchJoystick.startY = touch.clientY;
+                    touchJoystick.lastX = touch.clientX;
+                    touchJoystick.lastY = touch.clientY;
+                    event.preventDefault();
+                }, { passive: false });
+
+                joystickBase.addEventListener('touchmove', (event) => {
+                    if (!touchJoystick.active || gameMode !== 'smartphone') return;
+                    const touch = event.touches[0];
+                    const deltaX = touch.clientX - touchJoystick.startX;
+                    const deltaY = touch.clientY - touchJoystick.startY;
+                    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                    if (distance > 50) {
+                        const angle = Math.atan2(deltaY, deltaX);
+                        touchJoystick.lastX = touchJoystick.startX + Math.cos(angle) * 50;
+                        touchJoystick.lastY = touchJoystick.startY + Math.sin(angle) * 50;
+                    } else {
+                        touchJoystick.lastX = touch.clientX;
+                        touchJoystick.lastY = touch.clientY;
+                    }
+                    joystickKnob.style.left = `${touchJoystick.lastX - joystickBase.offsetLeft - 20}px`;
+                    joystickKnob.style.top = `${touchJoystick.lastY - joystickBase.offsetTop - 20}px`;
+                    event.preventDefault();
+                }, { passive: false });
+
+                joystickBase.addEventListener('touchend', () => {
+                    if (!isGameRunning || gameMode !== 'smartphone') return;
+                    touchJoystick.active = false;
+                    moveForward = moveBackward = moveLeft = moveRight = false;
+                    joystickKnob.style.left = '30px';
+                    joystickKnob.style.top = '30px';
+                }, { passive: true });
+
+                jumpButton.addEventListener('touchstart', () => {
+                    if (!isGameRunning || gameMode !== 'smartphone') return;
+                    if (canJump || gameMode === 'creative') {
+                        velocity.y = jumpVelocity;
+                        canJump = false;
+                    }
+                }, { passive: true });
+
+                sprintButton.addEventListener('touchstart', () => {
+                    if (!isGameRunning || gameMode !== 'smartphone') return;
+                    isSprinting = true;
+                }, { passive: true });
+
+                sprintButton.addEventListener('touchend', () => {
+                    if (!isGameRunning || gameMode !== 'smartphone') return;
+                    isSprinting = false;
+                }, { passive: true });
+
+                document.addEventListener('touchstart', (event) => {
+                    if (!isGameRunning || gameMode !== 'smartphone') return;
+                    if (!touchJoystick.active && !event.target.className.includes('touch-button')) {
+                        attack();
+                    }
+                }, { passive: true });
+
+                document.addEventListener('contextmenu', (event) => {
+                    if (!isGameRunning || gameMode !== 'smartphone') return;
+                    event.preventDefault();
+                    try {
+                        const raycaster = new THREE.Raycaster();
+                        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+                        const intersects = raycaster.intersectObjects([...Array.from(chunks.values())], true);
 
                         if (intersects.length > 0) {
                             const intersect = intersects[0];
-                            if (intersect.object.userData?.type) {
-                                console.log(`Hit ${intersect.object.userData.type}!`);
-                                return;
-                            }
-                            const pos = intersect.point.clone().sub(intersect.face.normal.multiplyScalar(0.5));
+                            const pos = intersect.point.clone().add(intersect.face.normal.multiplyScalar(0.5));
                             const blockX = Math.floor(pos.x);
                             const blockY = Math.floor(pos.y);
                             const blockZ = Math.floor(pos.z);
 
                             const blockKey = `${blockX},${blockY},${blockZ}`;
-                            if (blockMap.has(blockKey)) {
-                                const block = blockMap.get(blockKey);
-                                if (gameMode === 'survival') inventory[block.type]++;
-                                updateInventory();
-                                breakSound.currentTime = 0;
-                                breakSound.play();
-
-                                // パーティクル生成
-                                for (let i = 0; i < 5; i++) createParticle(blockX, blockY, blockZ, block.color);
-
-                                blockMap.delete(blockKey);
-                                const chunkX = Math.floor(blockX / chunkSize);
-                                const chunkZ = Math.floor(blockZ / chunkSize);
-                                const chunkKey = `${chunkX},${chunkZ}`;
-                                const chunk = chunks.get(chunkKey);
-                                if (chunk) {
-                                    scene.remove(chunk);
-                                    const fluidMaterials = blockMaterials.get(chunkKey);
-                                    if (fluidMaterials) {
-                                        scene.remove(fluidMaterials.fluidMesh);
-                                        blockMaterials.delete(chunkKey);
+                            if (!blockMap.has(blockKey)) {
+                                const selectedItem = [
+                                    '', '', 'grass', 'dirt', 'stone',
+                                    'sand', 'ice', 'wood', 'leaves', 'water'
+                                ][selectedSlot];
+                                if (selectedItem && gameMode !== 'creative' && inventory[selectedItem] <= 0) {
+                                    alert('ブロックがありません！');
+                                    return;
+                                }
+                                if (selectedItem) {
+                                    if (gameMode === 'survival') inventory[selectedItem]--;
+                                    let color;
+                                    switch (selectedItem) {
+                                        case 'grass': color = 0x00ff00; break;
+                                        case 'dirt': color = 0x8b4513; break;
+                                        case 'stone': color = 0x808080; break;
+                                        case 'sand': color = 0xffff99; break;
+                                        case 'ice': color = 0xE0FFFF; break;
+                                        case 'wood': color = 0x8b4513; break;
+                                        case 'leaves': color = 0x00cc00; break;
+                                        case 'water': color = 0x0000FF; break;
+                                        default: return;
                                     }
-                                    chunks.delete(chunkKey);
-                                    generateChunk(chunkX, chunkZ);
+                                    blockMap.set(blockKey, { color, type: selectedItem });
+                                    updateInventory();
+
+                                    const chunkX = Math.floor(blockX / chunkSize);
+                                    const chunkZ = Math.floor(blockZ / chunkSize);
+                                    const chunkKey = `${chunkX},${chunkZ}`;
+                                    const chunk = chunks.get(chunkKey);
+                                    if (chunk) {
+                                        scene.remove(chunk);
+                                        const fluidMaterials = blockMaterials.get(chunkKey);
+                                        if (fluidMaterials) {
+                                            scene.remove(fluidMaterials.fluidMesh);
+                                            blockMaterials.delete(chunkKey);
+                                        }
+                                        chunks.delete(chunkKey);
+                                        generateChunk(chunkX, chunkZ);
+                                    }
                                 }
                             }
                         }
+                    } catch (e) {
+                        handleError(`右クリックエラー: ${e.message}`);
                     }
-                } else if (event.button === 2) { // 右クリック
-                    const raycaster = new THREE.Raycaster();
-                    raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-                    const intersects = raycaster.intersectObjects([...Array.from(chunks.values())], true);
+                }, { passive: false });
 
-                    if (intersects.length > 0) {
-                        const intersect = intersects[0];
-                        const pos = intersect.point.clone().add(intersect.face.normal.multiplyScalar(0.5));
-                        const blockX = Math.floor(pos.x);
-                        const blockY = Math.floor(pos.y);
-                        const blockZ = Math.floor(pos.z);
+                camera.position.y = 10;
 
-                        const blockKey = `${blockX},${blockY},${blockZ}`;
-                        if (!blockMap.has(blockKey)) {
-                            const selectedItem = [
-                                '', '', 'grass', 'dirt', 'stone',
-                                'sand', 'ice', 'wood', 'leaves', 'water'
-                            ][selectedSlot];
-                            if (selectedItem && gameMode !== 'creative' && inventory[selectedItem] <= 0) {
-                                alert('ブロックがありません！');
-                                return;
-                            }
-                            if (selectedItem) {
-                                if (gameMode === 'survival') inventory[selectedItem]--;
-                                let color;
-                                switch (selectedItem) {
-                                    case 'grass': color = 0x00ff00; break;
-                                    case 'dirt': color = 0x8b4513; break;
-                                    case 'stone': color = 0x808080; break;
-                                    case 'sand': color = 0xffff99; break;
-                                    case 'ice': color = 0xE0FFFF; break;
-                                    case 'wood': color = 0x8b4513; break;
-                                    case 'leaves': color = 0x00cc00; break;
-                                    case 'water': color = 0x0000FF; break;
-                                    default: return;
-                                }
-                                blockMap.set(blockKey, { color, type: selectedItem });
-                                updateInventory();
+                let prevTime = performance.now();
+                let frameTime = fpsLimit > 0 ? 1000 / fpsLimit : 0;
+                let lastFrame = performance.now();
+                let lastUpdate = performance.now();
 
-                                const chunkX = Math.floor(blockX / chunkSize);
-                                const chunkZ = Math.floor(blockZ / chunkSize);
-                                const chunkKey = `${chunkX},${chunkZ}`;
-                                const chunk = chunks.get(chunkKey);
-                                if (chunk) {
-                                    scene.remove(chunk);
-                                    const fluidMaterials = blockMaterials.get(chunkKey);
-                                    if (fluidMaterials) {
-                                        scene.remove(fluidMaterials.fluidMesh);
-                                        blockMaterials.delete(chunkKey);
-                                    }
-                                    chunks.delete(chunkKey);
-                                    generateChunk(chunkX, chunkZ);
-                                }
+                function updateMovement(delta) {
+                    if (!controls.isLocked || !isGameRunning) return;
+
+                    velocity.x *= 0.9;
+                    velocity.z *= 0.9;
+                    velocity.y += gravity * delta;
+
+                    const direction = new THREE.Vector3(0, 0, 0);
+                    if (moveForward || (gameMode === 'smartphone' && touchJoystick.active && touchJoystick.lastY < touchJoystick.startY - 20)) direction.z -= 1;
+                    if (moveBackward || (gameMode === 'smartphone' && touchJoystick.active && touchJoystick.lastY > touchJoystick.startY + 20)) direction.z += 1;
+                    if (moveLeft || (gameMode === 'smartphone' && touchJoystick.active && touchJoystick.lastX < touchJoystick.startX - 20)) direction.x -= 1;
+                    if (moveRight || (gameMode === 'smartphone' && touchJoystick.active && touchJoystick.lastX > touchJoystick.startX + 20)) direction.x += 1;
+                    if (direction.length() > 0) direction.normalize();
+
+                    const speed = isSprinting ? sprintSpeed : baseSpeed;
+                    if (moveForward || moveBackward || moveLeft || moveRight || (gameMode === 'smartphone' && touchJoystick.active)) {
+                        const cameraDirection = new THREE.Vector3();
+                        controls.getDirection(cameraDirection);
+                        cameraDirection.y = 0;
+                        cameraDirection.normalize();
+
+                        const rightVector = new THREE.Vector3().crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0)).normalize();
+                        const moveVector = cameraDirection.multiplyScalar(direction.z * speed * delta * 10)
+                            .add(rightVector.multiplyScalar(direction.x * speed * delta * 10));
+                        controls.getObject().position.add(moveVector);
+
+                        if (gameMode !== 'smartphone' && time - lastStepTime > 500) {
+                            const stepSound = document.getElementById('stepSound');
+                            if (stepSound) {
+                                stepSound.currentTime = 0;
+                                stepSound.play().catch(e => console.warn(`音声再生エラー: ${e.message}`));
+                                lastStepTime = time;
                             }
                         }
                     }
-                }
-            }, { passive: false });
 
-            function attack() {
-                if (inventory.sword <= 0) return;
-                const raycaster = new THREE.Raycaster();
-                raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-                const intersects = raycaster.intersectObjects(mobs, true);
+                    controls.getObject().position.y += velocity.y * delta;
 
-                if (intersects.length > 0) {
-                    const mob = intersects[0].object;
-                    mob.userData.health -= 4;
-                    hitSound.currentTime = 0;
-                    hitSound.play();
-                    if (mob.userData.health <= 0) {
-                        scene.remove(mob);
-                        mobs.splice(mobs.indexOf(mob), 1);
+                    if (gameMode !== 'creative') {
+                        const groundHeight = getGroundHeight(controls.getObject().position.x, controls.getObject().position.z);
+                        if (controls.getObject().position.y <= groundHeight + 1.6) {
+                            controls.getObject().position.y = groundHeight + 1.6;
+                            velocity.y = 0;
+                            canJump = true;
+                        } else if (controls.getObject().position.y > groundHeight + 1.6 + 5) {
+                            health -= 0.1;
+                            updateInventory();
+                        }
                     }
-                }
-            }
 
-            camera.position.y = 10;
+                    droppedItems.forEach((item, index) => {
+                        if (gameMode !== 'smartphone') {
+                            const distance = controls.getObject().position.distanceTo(item.position);
+                            if (distance < 1.0) {
+                                inventory[item.userData.type]++;
+                                scene.remove(item);
+                                droppedItems.splice(index, 1);
+                                updateInventory();
+                            } else {
+                                item.userData.life -= delta;
+                                item.position.y += item.userData.vy * delta;
+                                item.userData.vy += gravity * delta * 0.1;
+                                if (item.userData.life <= 0) {
+                                    scene.remove(item);
+                                    droppedItems.splice(index, 1);
+                                }
+                            }
+                        }
+                    });
 
-            let prevTime = performance.now();
-            let frameTime = fpsLimit > 0 ? 1000 / fpsLimit : 0;
-            let lastFrame = performance.now();
-            let lastUpdate = performance.now();
-
-            function animate() {
-                requestAnimationFrame(animate);
-
-                const now = performance.now();
-                if (fpsLimit > 0 && (now - lastFrame) < frameTime) return;
-                lastFrame = now;
-
-                time = now;
-                const delta = (time - prevTime) / 1000;
-                prevTime = time;
-
-                // 移動処理
-                velocity.x *= 0.9; // 減衰
-                velocity.z *= 0.9;
-                velocity.y += gravity * delta;
-
-                const direction = new THREE.Vector3();
-                if (moveForward) direction.z -= 1;
-                if (moveBackward) direction.z += 1;
-                if (moveLeft) direction.x -= 1;
-                if (moveRight) direction.x += 1;
-                direction.normalize();
-
-                const speed = isSprinting ? sprintSpeed : baseSpeed;
-                if (moveForward || moveBackward || moveLeft || moveRight) {
-                    velocity.x += direction.x * speed * delta * 10;
-                    velocity.z += direction.z * speed * delta * 10;
-                }
-
-                controls.moveRight(velocity.x * delta);
-                controls.moveForward(velocity.z * delta);
-                camera.position.y += velocity.y * delta;
-
-                if (gameMode !== 'creative') {
-                    const groundHeight = getGroundHeight(camera.position.x, camera.position.z);
-                    if (camera.position.y <= groundHeight + 1.6) {
-                        camera.position.y = groundHeight + 1.6;
-                        velocity.y = 0;
-                        canJump = true;
-                    } else if (camera.position.y > groundHeight + 1.6 + 5) {
-                        health -= 0.1; // 落下ダメージ
+                    if (gameMode === 'survival' && health < 20 && time % 5000 < delta * 1000) {
+                        health = Math.min(20, health + 1);
                         updateInventory();
                     }
                 }
 
-                dayTime += 0.005;
-                const lightIntensity = Math.sin(dayTime) * 0.5 + 0.5 + 0.3;
-                sun.intensity = lightIntensity;
-                ambientLight.intensity = lightIntensity * 0.6;
+                function animate() {
+                    try {
+                        requestAnimationFrame(animate);
 
-                if (Math.random() < 0.001 && weather === 'clear') {
-                    weather = 'rain';
-                    document.getElementById('weather').textContent = '天気: 雨';
-                } else if (Math.random() < 0.0005 && weather === 'rain') {
-                    weather = 'clear';
-                    document.getElementById('weather').textContent = '天気: 晴れ';
+                        const now = performance.now();
+                        if (fpsLimit > 0 && (now - lastFrame) < frameTime) return;
+                        const delta = (now - prevTime) / 1000;
+                        lastFrame = now;
+
+                        time = now;
+                        prevTime = now;
+
+                        updateMovement(delta);
+
+                        dayTime += 0.005;
+                        const lightIntensity = Math.sin(dayTime) * 0.5 + 0.5 + 0.3;
+                        sun.intensity = lightIntensity;
+                        ambientLight.intensity = lightIntensity * 0.6;
+
+                        if (Math.random() < 0.001 && weather === 'clear') {
+                            weather = 'rain';
+                            document.getElementById('weather').textContent = '天気: 雨';
+                        } else if (Math.random() < 0.0005 && weather === 'rain') {
+                            weather = 'clear';
+                            document.getElementById('weather').textContent = '天気: 晴れ';
+                        }
+
+                        if (now - lastUpdate > 500) {
+                            updateFluidOpacity();
+                            updateChunks();
+                            lastUpdate = now;
+                        }
+
+                        if (gameMode !== 'smartphone') {
+                            particles.forEach((particle, index) => {
+                                particle.userData.life -= delta;
+                                particle.position.y += particle.userData.vy * delta;
+                                if (particle.userData.life <= 0) {
+                                    scene.remove(particle);
+                                    particle.geometry.dispose();
+                                    particle.material.dispose();
+                                    particles.splice(index, 1);
+                                }
+                            });
+                        }
+
+                        mobs.forEach((mob, index) => {
+                            mob.position.x += mob.userData.vx;
+                            mob.position.z += mob.userData.vz;
+                            const groundHeight = getGroundHeight(mob.position.x, mob.position.z);
+                            mob.position.y = groundHeight + 1;
+                            if (Math.random() < 0.005) {
+                                mob.userData.vx = (Math.random() - 0.5) * 0.03;
+                                mob.userData.vz = (Math.random() - 0.5) * 0.03;
+                            }
+                            const distance = Math.sqrt(
+                                (mob.position.x - controls.getObject().position.x) ** 2 +
+                                (mob.position.z - controls.getObject().position.z) ** 2
+                            );
+                            if (gameMode === 'survival' && distance < 1.5) {
+                                health -= 0.5;
+                                updateInventory();
+                            }
+                            if (mob.userData.health <= 0) {
+                                scene.remove(mob);
+                                mobs.splice(index, 1);
+                            }
+                        });
+
+                        if (health <= 0) {
+                            alert('ゲームオーバー！リロードして再挑戦してください。');
+                            location.reload();
+                        }
+
+                        if (showDebug) {
+                            debugInfoDiv.textContent = `X: ${controls.getObject().position.x.toFixed(2)}\nZ: ${controls.getObject().position.z.toFixed(2)}\nY: ${controls.getObject().position.y.toFixed(2)}\nFPS: ${(1000 / (now - lastFrame)).toFixed(2)}`;
+                        }
+
+                        renderer.render(scene, camera);
+                    } catch (e) {
+                        handleError(`アニメーションエラー: ${e.message}`);
+                    }
                 }
 
-                if (now - lastUpdate > 500) {
-                    updateFluidOpacity();
-                    updateChunks();
-                    lastUpdate = now;
+                function getGroundHeight(x, z) {
+                    const worldX = Math.floor(x);
+                    const worldZ = Math.floor(z);
+                    let maxHeight = -15;
+                    for (let y = -15; y < 20; y++) {
+                        if (blockMap.has(`${worldX},${y},${worldZ}`)) maxHeight = y + 1;
+                    }
+                    return maxHeight;
                 }
 
-                // パーティクル更新
-                particles.forEach((particle, index) => {
-                    particle.userData.life -= delta;
-                    particle.position.y += particle.userData.vy * delta;
-                    if (particle.userData.life <= 0) {
-                        scene.remove(particle);
-                        particle.geometry.dispose();
-                        particle.material.dispose();
-                        particles.splice(index, 1);
+                window.addEventListener('resize', () => {
+                    try {
+                        camera.aspect = window.innerWidth / window.innerHeight;
+                        camera.updateProjectionMatrix();
+                        renderer.setSize(window.innerWidth, window.innerHeight);
+                    } catch (e) {
+                        handleError(`リサイズエラー: ${e.message}`);
                     }
-                });
+                }, { passive: true });
 
-                mobs.forEach((mob, index) => {
-                    mob.position.x += mob.userData.vx;
-                    mob.position.z += mob.userData.vz;
-                    const groundHeight = getGroundHeight(mob.position.x, mob.position.z);
-                    mob.position.y = groundHeight + 1;
-                    if (Math.random() < 0.005) {
-                        mob.userData.vx = (Math.random() - 0.5) * 0.03;
-                        mob.userData.vz = (Math.random() - 0.5) * 0.03;
-                    }
-                    const distance = Math.sqrt(
-                        (mob.position.x - camera.position.x) ** 2 +
-                        (mob.position.z - camera.position.z) ** 2
-                    );
-                    if (gameMode === 'survival' && distance < 1.5) {
-                        health -= 0.5; // モブ接触ダメージ
-                        updateInventory();
-                    }
-                    if (mob.userData.health <= 0) {
-                        scene.remove(mob);
-                        mobs.splice(index, 1);
-                    }
-                });
-
-                if (health <= 0) {
-                    alert('ゲームオーバー！リロードして再挑戦してください。');
-                    location.reload();
-                }
-
-                renderer.render(scene, camera);
+                updateInventory();
+            } catch (e) {
+                handleError(`初期化エラー: ${e.message}`);
             }
-
-            function getGroundHeight(x, z) {
-                const worldX = Math.floor(x);
-                const worldZ = Math.floor(z);
-                let maxHeight = -15;
-                for (let y = -15; y < 20; y++) {
-                    if (blockMap.has(`${worldX},${y},${worldZ}`)) maxHeight = y + 1;
-                }
-                return maxHeight;
-            }
-
-            window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            }, { passive: true });
-
-            updateInventory();
         });
     </script>
 </body>
